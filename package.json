@@ -1,0 +1,17 @@
+{
+  "name": "better-search-server",
+  "version": "1.0.0",
+  "description": "Server for Better Search Chrome Extension",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
