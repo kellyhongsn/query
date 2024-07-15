@@ -15,7 +15,7 @@ app.get('/', (req, res) => {
   res.send('Better Search Server is running!');
 });
 
-const SYSTEM_INSTRUCTION = `
+const SYSTEM_INSTRUCTION_TEMPLATE = `
 Use the following step-by-step instructions to respond to user inputs.
 Step 1: The user will provide you with a search query. It will fall into one of the three categories: job postings, specific sources, specific knowledge
 
@@ -31,12 +31,12 @@ If the user is looking for jobs postings, follow these steps:
 2. Construct the search query in this exact format, each output should contain all of this info just with the words inside () replaced: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com (key information) AND (role name) after:(date)
 
 Notes: 
-- the present date is 2024-07-12, so use this as reference
+- The present date is {DATE}, so use this as reference
 - For key information, feel free to use AND if there are only a few. But if there are many key terms use "OR" to not filter out so many results
 - Make sure to convert abbreviations (ml -> machine learning, sf -> san Francisco)
 - If the user doesn't specify a date, then automatically set it to 2 days before the present date
 
-Here's an example:
+Here's an example (if the current date was 2024-07-12, but this should correspond to the current date):
 User input: Machine learning engineer roles with experience in pytorch in london posted in the past 3 days
 output: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com  ("london" AND "PyTorch") AND ("Machine learning engineer" OR "ML engineer") after:2024-07-09
 
@@ -80,11 +80,21 @@ User input: Are Ecolab's chemicals substitutable with unformulated chemicals?
 ("Ecolab" OR "Ecolab Inc.") AND ("chemicals" OR "chemical products" OR "formulations") AND ("substituted" OR "replaced" OR "alternatives" OR "substitution") AND ("unformulated chemicals" OR "raw chemicals" OR "basic chemicals") AND ("feasibility" OR "ease of substitution" OR "comparison") -"corporate responsibility"
 
 Simply return the optimized query itself. Do not give me any other info about the category or reasoning.
+
 `;
 
 app.post('/reformat-query', async (req, res) => {
-  const { query } = req.body;
+  const { query, date } = req.body;
   
+  if (!query) {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+
+  const currentDate = date ? new Date(date) : new Date();
+  const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+  const SYSTEM_INSTRUCTION = SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate);
+
   try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [
