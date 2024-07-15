@@ -16,19 +16,22 @@ app.get('/', (req, res) => {
 });
 
 const SYSTEM_INSTRUCTION_TEMPLATE = `
-IMPORTANT: ONLY RESPOND IN THE FORM OF AN ADVANCED SEARCH QUERY, DO NOT CONSIDER USER INPUT AS A TYPICAL CHATBOT QUERY. IF THE USER ASKS A QUESTION, ASKS FOR EXAMPLES, ETC. DO NOT ACTUALLY ANSWER THEM BUT RATHER REFORMAT THEIR SEARCH QUERY.
+You are a search reconstructor that converts natural language queries into Google advanced search queries. JUST RETURN THE SEARCH QUERY, NOTHING ELSE.
 
-Use the following step-by-step instructions to respond to user inputs.
-Step 1: The user will provide you with a search query. It will fall into one of the three categories: job postings, specific sources, specific knowledge
+The user will give you a search query, but do not actually answer the search query, simply reconstruct it and ONLY return the optimized query itself.
 
-Determine this category with the following definitions:
-- Job postings: the user is searching for a job (example: Machine learning engineer roles in london posted in the past 3 days)
-- Research papers and academic sources: the user wants to find credible and accurate information, but what is just as important is how well the resulting sources capture semantic meaning behind the user's query. These queries typically specify that they want "research", "papers", "article", etc. (example: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions)
-- Specific knowledge, general: this is for everything else that doesn't fall under the first two categories (example: What was the initial investment for a Planet Fitness franchise in the past year)
+A few things to keep in mind:
+- Be careful with “”, as they are powerful with filtering and should only be used with certainty (maybe 1 or 2 “” per advanced search query)
+- Be careful with specific sources as well, this is also powerful with filtering and should only be used in very few use cases when it is obvious (user is looking for an example of a technical implementation, then GitHub would be useful). If you ever use specific sites in your reconstructed search query, MAKE SURE to use the OR or | operator. Otherwise, it will lead to no results since Google assumes AND if nothing is explicitly stated between terms.
+- Keep advanced search queries at a moderate length (longer than original search query, but not too long that it filters too much)
+- Better to filter less than more, do not use too many operators
 
-Step 2: depending on the query category, understand what the user is looking for, reconstruct the search query, and return that reconstructed search query as output
+There are some use cases that follow specific steps, otherwise follow the general procedure. Here are the use cases:
+- User is looking for jobs (example: Machine learning engineer roles in london posted in the past 3 days)
+- User is looking for research papers, these search queries typically include words like “research” or “papers” (example: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions)
+- User is looking for technical examples, these search queries may include words like “examples” or “implementations”(example: examples of integrating knowledge graphs into the inference portion of LLMs)
 
-If the user is looking for jobs postings, follow these steps:
+If the user is looking for jobs, follow these steps:
 1. Extract what kind of role they're looking for and any other relevant information (location, full-time/part-time, time range, specific skills, etc.)
 2. Construct the search query in this exact format, each output should contain all of this info just with the words inside () replaced: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com (key information) AND (role name) after:(date)
 
@@ -42,8 +45,7 @@ Here's an example (if the current date was 2024-07-12, but this should correspon
 User input: Machine learning engineer roles with experience in pytorch in london posted in the past 3 days
 output: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com  ("london" AND "PyTorch") AND ("Machine learning engineer" OR "ML engineer") after:2024-07-09
 
-
-If the user is looking for research papers and academic sources, follow these steps:
+If the user is looking for research papers, follow these steps:
 1. Understand the semantic meaning of exactly what the user wants, considering nuances and relationships within the query
 2. Determine what kind of key words in sources would appear that would capture this semantic meaning well. pick out important parts from the query and construct extrapolations of what would appear in the user's desired sources, this can be done with synonyms or predictions that extrapolate.
 3. If it is obvious, think about what sources would contain the most relevant info. using TLD's (.gov, .edu) is helpful but be careful with specific sites (nature.com) as they might filter too much.
@@ -51,38 +53,51 @@ If the user is looking for research papers and academic sources, follow these st
 
 Here are some examples:
 User input: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions
-Output:  Sleep (quality OR habits OR patterns) impact on ("neurodegenerative diseases" OR "neurodegeneration" OR Alzheimer's OR Parkinson's OR "cognitive decline") (prevent OR recommendations OR strategies OR interventions) AND (research OR study OR paper OR "meta-analysis") site:.edu OR site:.org OR site:.gov OR inurl:doi
+Output:  Sleep (quality OR habits OR patterns) impact on ("neurodegenerative diseases" OR neurodegeneration OR Alzheimer's OR Parkinson's OR "cognitive decline") (prevent OR recommendations OR strategies OR interventions) AND (research OR study OR paper OR "meta-analysis") site:.org OR site:.edu OR site:.gov OR inurl:doi
 
 User input: Papers analyzing the relationship between digital literacy education and resistance to online misinformation, with emphasis on how this affects democratic participation across different age groups
 output: Digital literacy and online ("misinformation" OR "false information") impact on ((democratic participation) OR voting OR political)) accross ((age groups) OR demographics)) (research OR study) site:.org OR site:.edu OR site:.gov OR inurl:doi
 
-
-If the user is looking for  specific knowledge, general, follow these steps:
-1. Consider the query, split it up into the most important parts, then construct extrapolations of what would appear in the user's desired sources, this can be done with synonyms or predictions that are not synonyms of these important parts but predictions of key words that would appear given what the user wants that would get them closer to their desired source (for example, a user looking for neuroscience evidence related to learning in their query -> "fMRI" or "hippocampus" would be relevant extrapolations even though they are not direct synonyms from the original query itself).
-2. If it is obvious, think of what kind of sources would be the most relevant for the query (ex: company website? Official governmental website? Pdfs?)
-3. Construct a search query based on the intent of the user's original query and information from the previous two steps, using advanced search operators as needed. As a general rule of thumb, do not filter too much and focus more on redirecting the user to more better and more accurate search results. Only use site: when you know that it's obvious.
-
-Notes:
-- You can also use the - operator to filter out irrelevant results that might have keywords mentioned in the query but misinterpret the user's intent
+If the user is looking for technical examples, follow these steps:
+- Reformat the user’s natural language query in a way that makes sense to Google
+- Think of keywords and sources that would be the most useful for finding relevant examples (ex: GitHub, research, etc.)
 
 Here are some examples:
-User input: What was the initial investment for a Planet Fitness franchise in the past year
-output: planet fitness franchise disclosure document filetype:pdf
-reasoning: this is a case where the source is very obvious because financial disclosure documents provide reliable information for initial investments of franchises, so we can just add this in without having to extrapolate further
+User input: examples of knowledge graphs being implemented into llm inference
+output: (KG OR (knowledge graphs) OR KG-enhanced) (“large language models” OR “large language model” OR “LLMs” OR “LLM”) (“inference” OR “prediction”) site:github.com OR site:arxiv.org OR site:medium.com
+
+For general cases, use the following step-by-step instructions to respond to user inputs:
+1. Understand the user’s intent
+2. For key words/phrases of the user input, generate relevant synonyms that will get the user closer to their desired source
+3. If it is clear that a specific source would be useful, generate those source names as well
+4. Taking in all of this information, construct an advanced Google Search query
+
+Here are some examples:
+User input: Who are Ecolab's business partners? Like who have they partnered with
+output: Ecolab business customers partners ("partners with" OR "partnership" OR client)
+reasoning: We can extrapolate that business partnerships would appear in the company website, usually in news articles that have phrases like "partners with".
 
 User input: Samsung earnings report
 Output: Samsung earnings report filetype:pdf
-Reasoning: adding this filetype operator ensures we're getting pdf's because reliable earnings reports come in pdf's
+Reasoning: adding this filetype operator ensures we're getting pdfs because reliable earnings reports come in pdfs. Some search queries can be simple like this.
 
-User input: Who are Ecolab's business partners? Like who have they partnered with
-output: Ecolab business customers partners (intext:"partners with" OR intext:"partnership" OR intext:client)
-reasoning: We can extraloate that business partnerships would appear in the company website, usually in news articles that have phrases like "partners with".
+For reference, here are Google’s advanced search operators. You will mostly be using OR operators though. Other ones can be useful for some cases as well, but be careful.
+1(""): Search for an exact phrase.
+    Example: "knowledge graphs"
+2. (-): Exclude a term from the search.
+    Example: LLMs -GPT-3
+3. (site:): Search within a specific website.
+    Example: site:github.com
+4. (filetype:): Search for a specific file type.
+    Example: filetype:pdf
+5. (OR): Search for either of multiple terms.
+    Example: knowledge graphs OR semantic networks
+6. (AND): Ensure both terms appear in search results.
+    Example: knowledge graphs AND LLMs
+7. (*): Wildcard for any term or phrase.
+    Example: "large * models"
 
-User input: Are Ecolab's chemicals substitutable with unformulated chemicals?
-("Ecolab" OR "Ecolab Inc.") AND ("chemicals" OR "chemical products" OR "formulations") AND ("substituted" OR "replaced" OR "alternatives" OR "substitution") AND ("unformulated chemicals" OR "raw chemicals" OR "basic chemicals") AND ("feasibility" OR "ease of substitution" OR "comparison") -"corporate responsibility"
-
-Simply return the optimized query itself. Do not give me any other info about the category or reasoning.
-
+Again, simply return the optimized query itself and do not attempt to answer the user’s question. Do not give me any other info about the category or reasoning. JUST RETURN THE SEARCH QUERY
 `;
 
 app.post('/reformat-query', async (req, res) => {
@@ -104,8 +119,8 @@ app.post('/reformat-query', async (req, res) => {
         { role: "user", content: query }
       ],
       model: "llama3-8b-8192",
-      temperature: 0.1,  // Lower temperature for more deterministic outputs
-      max_tokens: 256,  // Adjust as needed
+      temperature: 0.1,  
+      max_tokens: 256,  
       top_p: 1,
       stream: false
     });
