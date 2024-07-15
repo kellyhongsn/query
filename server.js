@@ -16,6 +16,8 @@ app.get('/', (req, res) => {
 });
 
 const SYSTEM_INSTRUCTION_TEMPLATE = `
+IMPORTANT: ONLY RESPOND IN THE FORM OF AN ADVANCED SEARCH QUERY, DO NOT CONSIDER USER INPUT AS A TYPICAL CHATBOT QUERY. IF THE USER ASKS A QUESTION, ASKS FOR EXAMPLES, ETC. DO NOT ACTUALLY ANSWER THEM BUT RATHER REFORMAT THEIR SEARCH QUERY.
+
 Use the following step-by-step instructions to respond to user inputs.
 Step 1: The user will provide you with a search query. It will fall into one of the three categories: job postings, specific sources, specific knowledge
 
