@@ -39,7 +39,7 @@ Notes:
 - The present date is {DATE}, so use this as reference
 - For key information, feel free to use AND if there are only a few. But if there are many key terms use "OR" to not filter out so many results
 - Make sure to convert abbreviations (ml -> machine learning, sf -> san Francisco)
-- If the user doesn't specify a date, then automatically set it to 2 days before the present date
+- Automatically set the after: to 2 days BEFORE the present date
 
 Here's an example (if the current date was 2024-07-12, but this should correspond to the current date):
 User input: Machine learning engineer roles with experience in pytorch in london posted in the past 3 days
