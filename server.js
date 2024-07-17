@@ -1,8 +1,8 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const Groq = require('groq-sdk');
-const QuerySearch = require('./querySearch').default;
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import Groq from 'groq-sdk';
+import QuerySearch from './querySearch.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
   res.send('server is running');
 });
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 async function rerankAndDeduplicate(searchResults, query) {
   const allDocuments = [

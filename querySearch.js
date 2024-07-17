@@ -1,11 +1,11 @@
-import { GoogleSerperAPIWrapper } from "langchain/tools";
-import { config } from 'dotenv';
+import { SerpAPI } from "@langchain/community/tools/serpapi";
+import { config } from "dotenv";
 
 config();
 
 class QuerySearch {
   constructor() {
-    this.serper = new GoogleSerperAPIWrapper({
+    this.serper = new SerpAPI({
       apiKey: process.env.SERPER_API_KEY
     });
   }
