@@ -14,6 +14,8 @@ const querySearch = new QuerySearch()
 
 app.use(express.json());
 
+const rerankedResultsStore = new Map();
+
 app.get('/', (req, res) => {
   res.send('server is running');
 });
@@ -214,18 +216,30 @@ app.post('/reformat-query', async (req, res) => {
     console.log('First Simple Query:', firstSimpleQuery);
     console.log('Second Simple Query:', secondSimpleQuery);
 
-    const searchResults = await querySearch.performMultipleSearches([advancedQuery, firstSimpleQuery, secondSimpleQuery]);
-    const rerankedResults = await rerankAndDeduplicate(searchResults, query);
+    res.json({ advancedQuery });
 
-    res.json({ 
-      advancedQuery,
-      rerankedResults: rerankedResults.slice(0, 5) 
-    });
+    processRerankedResults(query, advancedQuery, firstSimpleQuery, secondSimpleQuery);
+
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while processing the query' });
   }
 });
+
+async function processRerankedResults(originalQuery, advancedQuery, firstSimpleQuery, secondSimpleQuery) {
+  try {
+    const searchResults = await querySearch.performMultipleSearches([advancedQuery, firstSimpleQuery, secondSimpleQuery]);
+    const rerankedResults = await rerankAndDeduplicate(searchResults, originalQuery);
+    
+    // Store the reranked results using advancedQuery as the key
+    rerankedResultsStore.set(advancedQuery, rerankedResults.slice(0, 5));
+    
+    console.log('Reranked results ready for advanced query:', advancedQuery);
+  } catch (error) {
+    console.error('Error processing reranked results:', error);
+    rerankedResultsStore.set(advancedQuery, { error: 'Failed to process reranked results' });
+  }
+}
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
@@ -249,3 +263,20 @@ function extractQueries(llmOutput) {
     secondSimpleQuery
   };
 }
+
+app.get('/reranked-results', (req, res) => {
+  const { advancedQuery } = req.query;
+  
+  if (!advancedQuery) {
+    return res.status(400).json({ error: 'Advanced query is required' });
+  }
+  
+  const results = rerankedResultsStore.get(advancedQuery);
+  
+  if (results) {
+    rerankedResultsStore.delete(advancedQuery); // Clean up after sending
+    res.json(results);
+  } else {
+    res.status(404).json({ error: 'Results not found or still processing' });
+  }
+});
