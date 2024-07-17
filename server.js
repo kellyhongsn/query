@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
-const QuerySearch = require('./querySearch');
+const QuerySearch = require('./querySearch').default;
 
 const app = express();
 const port = process.env.PORT || 3000;

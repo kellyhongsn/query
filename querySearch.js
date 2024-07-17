@@ -1,7 +1,7 @@
-const { GoogleSerperAPIWrapper } = require("langchain/tools");
-const dotenv = require('dotenv');
+import { GoogleSerperAPIWrapper } from "langchain/tools";
+import { config } from 'dotenv';
 
-dotenv.config();
+config();
 
 class QuerySearch {
   constructor() {
@@ -39,4 +39,4 @@ class QuerySearch {
   }
 }
 
-module.exports = QuerySearch;
+export default QuerySearch;
