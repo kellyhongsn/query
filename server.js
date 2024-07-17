@@ -185,6 +185,7 @@ Output:(Detailed advanced Google search query);(simple query 1);(simple query 2)
 `;
 
 app.post('/reformat-query', async (req, res) => {
+  console.log('server reached');
   const { query, date } = req.body;
   
   if (!query) {
