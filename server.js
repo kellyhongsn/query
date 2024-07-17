@@ -217,7 +217,10 @@ app.post('/reformat-query', async (req, res) => {
     const searchResults = await querySearch.performMultipleSearches([advancedQuery, firstSimpleQuery, secondSimpleQuery]);
     const rerankedResults = await rerankAndDeduplicate(searchResults, query);
 
-    res.json({ advancedQuery });
+    res.json({ 
+      advancedQuery,
+      rerankedResults: rerankedResults.slice(0, 5) 
+    });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while processing the query' });
