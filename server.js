@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const Groq = require('groq-sdk');
 const QuerySearch = require('./querySearch');
 
@@ -13,6 +14,7 @@ const groq = new Groq({
 const querySearch = new QuerySearch()
 
 app.use(express.json());
+app.use(cors());
 
 const rerankedResultsStore = new Map();
 
@@ -185,7 +187,7 @@ Output:(Detailed advanced Google search query);(simple query 1);(simple query 2)
 `;
 
 app.post('/reformat-query', async (req, res) => {
-  console.log('server reached');
+  console.log('reformatting reached');
   const { query, date } = req.body;
   
   if (!query) {
@@ -228,6 +230,8 @@ app.post('/reformat-query', async (req, res) => {
 });
 
 async function processRerankedResults(originalQuery, advancedQuery, firstSimpleQuery, secondSimpleQuery) {
+  console.log('reranking reached');
+
   try {
     const searchResults = await querySearch.performMultipleSearches([advancedQuery, firstSimpleQuery, secondSimpleQuery]);
     const rerankedResults = await rerankAndDeduplicate(searchResults, originalQuery);
