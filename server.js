@@ -195,6 +195,8 @@ app.post('/reformat-query', async (req, res) => {
       top_p: 1
     });
 
+    console.log(fullResponse);
+
     const finalResultRegex = /final result:\s*(.*)/i;
     const finalResultMatch = fullResponse.match(finalResultRegex);
     const advancedQuery = finalResultMatch 
