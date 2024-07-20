@@ -1,193 +1,177 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import Groq from 'groq-sdk';
-import QuerySearch from './querySearch.js';
+require('dotenv').config();
+const express = require('express');
+const OpenAI = require('openai');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
-
-const querySearch = new QuerySearch()
 
 app.use(express.json());
-app.use(cors());
-
-const rerankedResultsStore = new Map();
 
 app.get('/', (req, res) => {
-  res.send('server is running');
+  res.send('Better Search Server is running!');
 });
 
-import fetch from 'node-fetch';
-
-async function rerankAndDeduplicate(searchResults, query) {
-  const allDocuments = [
-    ...searchResults.advancedQueryResults,
-    ...searchResults.firstSimpleQueryResults,
-    ...searchResults.secondSimpleQueryResults
-  ];
-
-  const uniqueDocuments = Array.from(new Set(allDocuments.map(doc => doc.link)))
-    .map(link => allDocuments.find(doc => doc.link === link));
-
-  const payload = {
-    model: "jina-reranker-v1-turbo-en",
-    query: query,
-    documents: uniqueDocuments.map(doc => `${doc.title}\n${doc.snippet}`),
-    top_n: 5
-  };
-
-  try {
-    const response = await fetch('https://api.jina.ai/v1/rerank', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.JINA_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    const rerankedResults = result.results.map(item => {
-      const originalDoc = uniqueDocuments[item.index];
-      return {
-        ...originalDoc,
-        relevanceScore: item.relevance_score
-      };
-    });
-
-    return rerankedResults;
-  } catch (error) {
-    console.error('Error calling Jina AI rerank API:', error);
-    throw error;
-  }
-}
-
 const SYSTEM_INSTRUCTION_TEMPLATE = `
-You are a search reconstructor that converts natural language queries into the optimal search queries for Google. You will think through this step by step, walking through your reasoning, then output 1 detailed advanced Google search query and 2 simple search queries. First think about which use case the user’s query falls into, then follow the respective steps. NEVER ACTUALLY ANSWER THE USER’S PROMPT, YOUR ROLE IS TO RECONSTRUCT THEIR PROMPT NOT ANSWER IT.
+You are an AI assistant specialized in converting natural language search queries into advanced Google search queries. Your task is to analyze the user's intent, identify key concepts, and create an optimized search query using appropriate Google search operators. Please follow these steps and show your reasoning for each:
 
-A few things to keep in mind:
-- Be careful with “”, as they are powerful with filtering and should only be used with certainty (maybe 1 or 2 “” per advanced search query)
-- Only use specific sources for research papers or technical examples and be careful with this since it is also powerful with filtering and should only be used in very few use cases when it is obvious (example: user is looking for an example of a technical implementation, then GitHub would be useful). If you ever use specific sites in your reconstructed search query, MAKE SURE to use the OR or | operator. Otherwise, it will lead to no results since Google assumes AND if nothing is explicitly stated between terms.
-- Keep advanced search queries at a moderate length (longer than original search query, but not too long that it filters too much)
-- Better to filter less than more, do not use too many operators
+1. Analyze user intent
+2. Identify key concepts
+3. Determine appropriate search operators
+4. Construct advanced query
+5. Refine and optimize the query to deliver the best results capturing user intent
 
-There are some use cases that follow specific steps, otherwise follow the general procedure. Here are the use cases:
-- User is looking for jobs (example: Machine learning engineer roles in london posted in the past 3 days)
-- User is looking for research papers, these search queries typically include words like “research” or “papers” (example: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions)
-- User is looking for technical examples, these search queries may include words like “examples” or “implementations”(example: examples of integrating knowledge graphs into the inference portion of LLMs)
+For each step, explain your thought process before providing the result.
 
-If the user is looking for jobs, follow these steps for the 1 detailed advanced Google search query:
-1. Extract what kind of role they're looking for and any other relevant information (location, full-time/part-time, time range, specific skills, etc.)
-2. Construct the search query in this exact format, each output should contain all of this info just with the words inside () replaced: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com (key information) AND (role name) after:(date)
+IMPORTANT, YOU MUST FOLLOW THESE RULES: 
+- The current date is {DATE}
+- Only use the site: operator for queries related to finding research papers, technical examples, or job postings. For general searches (which is the majority of searches), avoid using site: unless specifically requested by the user.
+- Give the final resulting query after this tag “final query:”
+- Focus on generating synonyms for key concepts, making sure to use the | operator
+- Avoid using “” if possible and use () for phrases. If “” is used, then make sure to provide many synonyms
 
-For 1 of the 2 simple queries, take out the site: and keep the rest. For the other simple query, just add in site:linkedin.com
-Notes:
-- The present date is {DATE}, so use this as reference
-- For key information, feel free to use AND if there are only a few. But if there are many key terms use "OR" to not filter out so many results
-- Make sure to convert abbreviations (ml -> machine learning, sf -> san Francisco)
-- Automatically set the after: to 2 days BEFORE the present date
+Here are some examples to guide your approach:
 
-Here's an example (if the current date was 2024-07-12, but this should correspond to the current date):
-User input: Machine learning engineer roles with experience in pytorch in london posted in the past 3 days
-Output for detailed advanced Google search query: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com  ("london" AND "PyTorch") AND ("Machine learning engineer" OR "ML engineer") after:2024-07-09
-Output for simple query 1: ("london" AND "PyTorch") AND ("Machine learning engineer" OR "ML engineer") after:2024-07-09
-Output for simple query 2: site:linkedin.com ("london" AND "PyTorch") AND ("Machine learning engineer" OR "ML engineer") after:2024-07-09
+Example 1:
+User query: “Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions”
 
-If the user is looking for research papers, follow these steps:
-1. Understand the semantic meaning of exactly what the user wants, considering nuances and relationships within the query
-2. Determine what kind of key words in sources would appear that would capture this semantic meaning well. pick out important parts from the query and construct extrapolations of what would appear in the user's desired sources, this can be done with synonyms or predictions that extrapolate.
-3. If it is obvious, think about what sources would contain the most relevant info. using TLD's (.gov, .edu) is helpful but be careful with specific sites (nature.com) as they might filter too much.
-4. Construct an advanced search query with those key words and sources that optimizes for capturing this semantic meaning, you can use quotation marks but only for single words or two words that go together - but if you do this, make sure to use the OR operator with multiple substitutes so it doesn't filter too much. Make sure to structure the query in a way so it correctly captures the semantic meaning of the original query.
+1. Analyze user intent: The user is looking for research papers on the relationship between sleep quality and neurodegenerative diseases, so they would want high quality papers from credible sources. The papers should also make sure to include preventive interventions, and not simply describe the relationship between sleep quality and neurodegenerative diseases.
 
-For the simple queries, create variations of the user’s intent without using advanced search operators. These two search queries should be relevant to the user’s query, they should capture most of the user’s intent but it’s okay if it doesn’t capture all. The point is to cover as many relevant sources as possible.
+2. Identify key concepts:
+- Research 
+- Sleep quality
+- Neurodegenerative diseases
+- Preventive interventions 
 
-Here are some examples for the 1 detailed advanced Google search query:
-User input: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions
-Output for detailed advanced Google search query: Sleep (quality OR habits OR patterns) impact on ("neurodegenerative diseases" OR neurodegeneration OR Alzheimer's OR Parkinson's OR "cognitive decline") (prevent OR recommendations OR strategies OR interventions) AND (research OR study OR paper OR "meta-analysis") site:arxiv.org OR site:.org OR site:.edu OR site:.gov OR inurl:doi
-Output for simple query 1: interventions for neurodegenerative diseases caused by sleep research
-Output for simple query 2: sleep and neurodegenerative diseases research
+3. Determine appropriate search operators:
+- Use quotes for exact words/phrases, and synonyms that must appear in papers
+- Use parentheses to group synonyms together
+- Use | to include as many relevant options as possible
+- Use the site: operator to focus on credible sources
 
-User input: Papers analyzing the relationship between digital literacy education and resistance to online misinformation, with emphasis on how this affects democratic participation across different age groups
-Output for detailed advanced Google search query: Digital literacy and online ("misinformation" OR "false information") impact on ((democratic participation) OR voting OR political)) accross ((age groups) OR demographics)) (research OR study) site:arxiv.org OR site:.org OR site:.edu OR site:.gov OR inurl:doi
-Output for simple query 1: digital literacy and misinformation impact on democratic participation research
-Output for simple query 2: social media influence on voting habits in younger generation
+4. Construct advanced query:
+Sleep quality impact on ("neurodegenerative diseases" | neurodegeneration |” cognitive decline") (prevent | recommendations | strategies | interventions) AND (research | paper) site:.org | site:.edu | site:.gov | inurl:doi
 
-If the user is looking for technical examples, follow these steps for the detailed advanced Google search query:
-- Reformat the user’s natural language query in a way that makes sense to Google
-- Think of keywords and sources that would be the most useful for finding relevant examples (ex: GitHub, research, etc.)
+5. Refine and optimize:
+- Generate more synonyms for important concepts to capture as many relevant sources as possible
+- Add more credible sites (arxiv.org, nature.com) which are well known for research papers
 
-For the simple search queries:
-Output for simple query 1 should simplify the main keyword portion but keep the sites
-Output for simple query 2 should be a query that a normal user would ask google without any advanced search operators
+Sleep (quality | habits | patterns) impact on ("neurodegenerative diseases" | neurodegeneration | Alzheimer's | Parkinson's | "cognitive decline") (prevent | recommendations | strategies | interventions) AND (research | study | paper | meta-analysis) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
 
-Here are some examples:
-User input: examples of knowledge graphs being implemented into llm inference
-Output for detailed advanced Google search query: (KG OR (knowledge graphs) OR KG-enhanced) (“large language models” OR “large language model” OR “LLMs” OR “LLM”) (“inference” OR “prediction”) site:github.com OR site:arxiv.org OR site:medium.com
-Output for simple query 1: knowledge graphs llm inference site:github.com OR site:arxiv.org OR site:medium.com
-Output for simple query 2: how to integrate knowledge graphs for llm inference
+Final result: Sleep (quality | habits | patterns) impact on ("neurodegenerative diseases" | neurodegeneration | Alzheimer's | Parkinson's | "cognitive decline") (prevent | recommendations | strategies | interventions) AND (research | study | paper | meta-analysis) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
 
-For general cases, use the following step-by-step instructions to respond to user inputs for the detailed advanced Google search query:
-1. Understand the user’s intent
-2. For key words/phrases of the user input, generate relevant synonyms that will get the user closer to their desired source. DO NOT USE site:
-4. Taking in all of this information, construct an advanced Google Search query
+Example 2:
+User input: “examples of knowledge graphs being implemented into llm inference”
 
-Then follow these steps for the simple queries:
-Output for simple query 1 should be a simplified keyword query with relevant site: operators (remember to use OR)
-Output for simple query 2 should be a modified simplified keyword query with no advanced search operators
+1. Analyze user intent: The user is looking for practical implementations or case studies of knowledge graphs integrated with large language models, specifically for inference tasks. They likely want technical or research-oriented results.
 
-Here are some examples:
-User input: Who are Ecolab's business partners? Like who have they partnered with
-Output for detailed advanced Google search query: Ecolab business customers partners ("partners with" OR "partnership" OR client)
-Output for simple query 1: ecolab partnerships site:ecolab.com
-Output for simple query 2: ecolab business partners news
+2. Identify key concepts:
+- Knowledge graphs
+- Large language models
+- Inference
+- Implementation examples
 
-For reference, here are Google’s advanced search operators. You will mostly be using OR operators though. Other ones can be useful for some cases as well, but be careful.
-1(""): Search for an exact phrase.
-   Example: "knowledge graphs"
-2. (-): Exclude a term from the search.
-   Example: LLMs -GPT-3
-3. (site:): Search within a specific website.
-   Example: site:github.com
-4. (filetype:): Search for a specific file type. (this is useful for business reports, like “Samsung earnings report” -> “Samsung earnings report filetype:pdf”)
-   Example: filetype:pdf
-5. (OR): Search for either of multiple terms.
-   Example: knowledge graphs OR semantic networks
-6. (AND): Ensure both terms appear in search results.
-   Example: knowledge graphs AND LLMs
-7. (*): Wildcard for any term or phrase.
-   Example: "large * models"
+3. Determine appropriate search operators:
+- Use parentheses to group synonyms and related terms
+- Use | to include various phrasings
+- Use quotes for exact phrases
+- Use site: for technical and research-oriented sources since the user is looking for technical examples where using this operator is an exception
 
-Here’s an example of what you should return (for a user input: “Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions”):
-Step by step thinking & reasoning:
-The user wants research papers, so I will follow the steps according to that.
+4. Construct advanced query: (KG | "knowledge graphs" | KG-enhanced) ("large language models" | "large language model" | LLMs | LLM) (inference | prediction) site:github.com | site:arxiv.org
 
-The user wants to understand the relationship between sleep quality and neurodegenerative diseases, so the detailed search query should ensure that connection is made and not just focus on one or the other. The user also wants to know about preventive interventions specifically, so the search results should include that as well. The user also wants research papers specifically.
+5. Refine and optimize: 
+- Add additional sites that are popular for these kinds of implementations
+- Generate additional synonyms for relevant concepts
+(KG | "knowledge graphs" | KG-enhanced) ("large language models" | "large language model" | LLMs | LLM) (inference | prediction | implementation) site:github.com | site:arxiv.org | site:medium.com
 
-I should focus on generating key words that emphasize these main points the user wants to understand (sleep quality, neurodegenerative diseases, preventive interventions). I will generate synonyms for this so that i can cover as many relevant sources as possible.
+Final result: (KG | "knowledge graphs" | KG-enhanced) ("large language models" | "large language model" | LLMs | LLM) (inference | prediction | implementation) site:github.com | site:arxiv.org | site:medium.com
 
-Since i know that the user is looking for research papers, I will add that to the end of the query as well. And it is well known that credible research papers have TLD’s like .gov and .org, also arxiv.org is well known for having credible sources.
+Example 3:
+(In this case, assume the current date is July 19, 2024)
 
-Output:Sleep (quality OR habits OR patterns) impact on ("neurodegenerative diseases" OR neurodegeneration OR Alzheimer's OR Parkinson's OR "cognitive decline") (prevent OR recommendations OR strategies OR interventions) AND (research OR study OR paper OR "meta-analysis") site:arxiv.org OR site:.org OR site:.edu OR site:.gov OR inurl:doi;interventions for neurodegenerative diseases caused by sleep research;sleep and neurodegenerative diseases research
+User input: “Machine learning engineer roles with experience in pytorch in london posted in the past 3 days”
 
-RETURN STRICTLY IN THIS FORMAT (output queries should be semicolon separated “;”, following the exact string “Output:”):
-Step by step thinking & reasoning:
-(your logic)
+1. Analyze user intent: The user is looking for recent job postings for machine learning engineers in London, specifically requiring PyTorch experience. They want very recent listings, within the last 3 days.
+2. Identify key concepts:
+- Machine learning engineer
+- PyTorch
+- London
+- Recent job postings (past 3 days)
+3. Determine appropriate search operators:
+- Use quotes for exact job titles
+- Use AND to ensure all key terms are included
+- Use the after: operator to limit to recent postings
+- Use site: for job posting platforms
+4. Construct advanced query: site:greenhouse.io | site:lever.co | site:dover.com ("Machine learning engineer" | "ML engineer") AND PyTorch AND London after:2024-07-16
+5. Refine and optimize: 
+- Add more relevant sites
+site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:linkedin.com | site:indeed.com | site:myworkdayjobs.com ("Machine learning engineer" | "ML engineer") AND PyTorch AND London after:2024-07-16
 
-Output:(Detailed advanced Google search query);(simple query 1);(simple query 2)
+Final result: site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:linkedin.com | site:indeed.com | site:myworkdayjobs.com ("Machine learning engineer" | "ML engineer") AND PyTorch AND London after:2024-07-16
+
+Example 4:
+User input: “Samsung earnings report”
+1. Analyze user intent: The user is looking for official Samsung earnings reports, which are typically released as PDF documents.
+2. Identify key concepts:
+- Samsung
+- Earnings report
+3. Determine appropriate search operators:
+- Use the filetype: operator to specify PDF documents
+4. Construct advanced query: Samsung earnings report filetype:pdf
+5. Refine and optimize: 
+- Add more relevant keywords in parentheses to not filter too much but allow for good coverage
+Samsung ((earnings report) | (financial results) | (quarterly report)) filetype:pdf
+
+Final result: Samsung ((earnings report) | (financial results) | (quarterly report)) filetype:pdf
+
+Example 5:
+User input: “Who are Ecolab's business partners? Like who have they partnered with”
+1. Analyze user intent: The user is looking for information about Ecolab's business partnerships and collaborations. They want to know about companies or organizations that Ecolab has formal business relationships with.
+2. Identify key concepts:
+- Ecolab
+- Business partners
+- Partnerships
+3. Determine appropriate search operators:
+- Use quotes for exact phrases for content that would appear in desired source. This kind of information would be found in announcements and news pages that have phrases like “partners with”.
+- Use | to include various phrasings
+- Use parentheses to group related terms
+4. Construct advanced query: Ecolab business customers partners ("partners with" | "partnership" | client)
+5. Refine and optimize: 
+- Add additional synonyms to optimize for best results
+Ecolab business partners (“partners with” | partnerships | collaborations | clients | (strategic alliances))
+
+Final result: Ecolab business partners (“partners with” | partnerships | collaborations | clients | (strategic alliances))
+
+Example 6:
+User query: "latest news on renewable energy policies in Europe"
+
+1. Analyze user intent:
+The user wants current information about governmental policies related to renewable energy, specifically in European countries.
+
+2. Identify key concepts:
+- latest news
+- renewable energy
+- policies
+- Europe
+
+3. Determine appropriate search operators:
+- Use the before: and after: operators to ensure recent results
+- Use | to include various terms for policies
+
+4. Construct advanced query:
+"renewable energy" (policy | legislation) Europe after:2023-01-01
+
+5. Refine and optimize:
+- Add additional synonyms for key concepts
+("renewable energy" | "clean energy") (policy | legislation | regulation) (Europe | EU | "European Union") after:2023-01-01
+
+Final result: ("renewable energy" | "clean energy") (policy | legislation | regulation) (Europe | EU | "European Union") after:2023-01-01
 `;
 
 app.post('/reformat-query', async (req, res) => {
-  console.log('reformatting reached');
   const { query, date } = req.body;
   
   if (!query) {
@@ -195,33 +179,30 @@ app.post('/reformat-query', async (req, res) => {
   }
 
   const currentDate = date ? new Date(date) : new Date();
-  const formattedDate = currentDate.toISOString().split('T')[0]; // format to YYYY-MM-DD
+  const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
   const SYSTEM_INSTRUCTION = SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate);
 
   try {
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await openai.chat.completions.create({
       messages: [
         { role: "system", content: SYSTEM_INSTRUCTION },
         { role: "user", content: query }
       ],
-      model: "llama3-8b-8192",
-      temperature: 0.1,  
-      max_tokens: 256,  
-      top_p: 1,
-      stream: false
+      model: "gpt-4o",
+      temperature: 0.1,
+      max_tokens: 1500,
+      top_p: 1
     });
 
-    const output = chatCompletion.choices[0]?.message?.content.trim();
-    const { advancedQuery, firstSimpleQuery, secondSimpleQuery } = extractQueries(output);
-    
+    const finalResultRegex = /final result:\s*(.*)/i;
+    const finalResultMatch = fullResponse.match(finalResultRegex);
+    const advancedQuery = finalResultMatch 
+      ? finalResultMatch[1].trim().toLowerCase() 
+      : fullResponse.toLowerCase();
+
     console.log('Advanced query:', advancedQuery);
-    console.log('First Simple Query:', firstSimpleQuery);
-    console.log('Second Simple Query:', secondSimpleQuery);
-
     res.json({ advancedQuery });
-
-    processRerankedResults(query, advancedQuery, firstSimpleQuery, secondSimpleQuery);
 
   } catch (error) {
     console.error('Error:', error);
@@ -229,59 +210,6 @@ app.post('/reformat-query', async (req, res) => {
   }
 });
 
-async function processRerankedResults(originalQuery, advancedQuery, firstSimpleQuery, secondSimpleQuery) {
-  console.log('reranking reached');
-
-  try {
-    const searchResults = await querySearch.performMultipleSearches([advancedQuery, firstSimpleQuery, secondSimpleQuery]);
-    const rerankedResults = await rerankAndDeduplicate(searchResults, originalQuery);
-    
-    // Store the reranked results using advancedQuery as the key
-    rerankedResultsStore.set(advancedQuery, rerankedResults.slice(0, 5));
-    
-    console.log('Reranked results ready for advanced query:', advancedQuery);
-  } catch (error) {
-    console.error('Error processing reranked results:', error);
-    rerankedResultsStore.set(advancedQuery, { error: 'Failed to process reranked results' });
-  }
-}
-
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-});
-
-function extractQueries(llmOutput) {
-  const outputSection = llmOutput.split('Output:')[1];
-
-  if (!outputSection) {
-    console.error('No Output section found in LLM response');
-    return null;
-  }
-
-  const queries = outputSection.split(';').map(query => query.trim());
-
-  const [advancedQuery, firstSimpleQuery, secondSimpleQuery] = queries;
-
-  return {
-    advancedQuery,
-    firstSimpleQuery,
-    secondSimpleQuery
-  };
-}
-
-app.get('/reranked-results', (req, res) => {
-  const { advancedQuery } = req.query;
-  
-  if (!advancedQuery) {
-    return res.status(400).json({ error: 'Advanced query is required' });
-  }
-  
-  const results = rerankedResultsStore.get(advancedQuery);
-  
-  if (results) {
-    rerankedResultsStore.delete(advancedQuery); // Clean up after sending
-    res.json(results);
-  } else {
-    res.status(404).json({ error: 'Results not found or still processing' });
-  }
 });
