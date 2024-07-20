@@ -195,6 +195,8 @@ app.post('/reformat-query', async (req, res) => {
       top_p: 1
     });
 
+    const fullResponse = chatCompletion.choices[0].message.content;
+
     console.log(fullResponse);
 
     const finalResultRegex = /final result:\s*(.*)/i;
