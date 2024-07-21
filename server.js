@@ -29,7 +29,7 @@ For each step, explain your thought process before providing the result.
 IMPORTANT, YOU MUST FOLLOW THESE RULES: 
 - The current date is {DATE}
 - Only use the site: operator for queries related to finding research papers, technical examples, or job postings. For general searches (which is the majority of searches), avoid using site: unless specifically requested by the user.
-- Give the final resulting query after this tag “final query:”
+- Give the final resulting query after this tag “final result:”
 - Focus on generating synonyms for key concepts, making sure to use the | operator
 - Avoid using “” if possible and use () for phrases. If “” is used, then make sure to provide many synonyms
 
@@ -203,7 +203,7 @@ app.post('/reformat-query', async (req, res) => {
     const finalResultMatch = fullResponse.match(finalResultRegex);
 
     console.log(finalResultMatch);
-    
+
     const advancedQuery = finalResultMatch 
       ? finalResultMatch[1].trim().toLowerCase() 
       : fullResponse.toLowerCase();
