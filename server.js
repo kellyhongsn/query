@@ -201,6 +201,9 @@ app.post('/reformat-query', async (req, res) => {
 
     const finalResultRegex = /final result:\s*(.*)/i;
     const finalResultMatch = fullResponse.match(finalResultRegex);
+
+    console.log(finalResultMatch);
+    
     const advancedQuery = finalResultMatch 
       ? finalResultMatch[1].trim().toLowerCase() 
       : fullResponse.toLowerCase();
