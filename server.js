@@ -177,6 +177,8 @@ app.post('/reformat-query', async (req, res) => {
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
+  console.log(query);
+  console.log(date);
 
   const currentDate = date ? new Date(date) : new Date();
   const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
