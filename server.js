@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai');
-
+const { Pool } = require('pg');
 const app = express();
 const cors = require('cors');
 const port = process.env.PORT || 3000;
@@ -11,6 +11,33 @@ app.use(cors());
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+async function initDatabase() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Database initialized');
+  } catch (err) {
+    console.error('Error initializing database', err);
+  } finally {
+    client.release();
+  }
+}
+
+initDatabase();
 
 app.use(express.json());
 
@@ -224,4 +251,36 @@ app.post('/reformat-query', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+});
+
+app.post('/join-waitlist', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('INSERT INTO waitlist (email) VALUES ($1)', [email]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving email:', err);
+    res.status(500).json({ success: false, error: 'Failed to save email' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/get-waitlist', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT email, created_at FROM waitlist ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching emails:', err);
+    res.status(500).json({ error: 'Failed to fetch emails' });
+  } finally {
+    client.release();
+  }
 });
