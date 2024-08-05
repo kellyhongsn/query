@@ -221,10 +221,11 @@ app.post('/reformat-query', async (req, res) => {
         { role: "system", content: SYSTEM_INSTRUCTION },
         { role: "user", content: query }
       ],
-      model: "llama-3.1-405b-reasoning",
-      temperature: 0.1,
-      max_tokens: 1500,
-      top_p: 1
+      model: "llama3-8b-8192",
+      temperature: 0.1,  // Lower temperature for more deterministic outputs
+      max_tokens: 1500,  // Adjust as needed
+      top_p: 1,
+      stream: false
     });
 
     const fullResponse = chatCompletion.choices[0].message.content;
