@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const OpenAI = require('openai');
+const { Groq } = require('groq');
 const { Pool } = require('pg');
 const app = express();
 const cors = require('cors');
@@ -8,8 +8,8 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
 });
 
 const pool = new Pool({
@@ -216,12 +216,12 @@ app.post('/reformat-query', async (req, res) => {
   const SYSTEM_INSTRUCTION = SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate);
 
   try {
-    const chatCompletion = await openai.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: SYSTEM_INSTRUCTION },
         { role: "user", content: query }
       ],
-      model: "gpt-4o",
+      model: "llama-3.1-405b-reasoning",
       temperature: 0.1,
       max_tokens: 1500,
       top_p: 1
