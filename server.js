@@ -285,3 +285,55 @@ app.get('/get-waitlist', async (req, res) => {
     client.release();
   }
 });
+
+app.post('/find-similar', async (req, res) => {
+  const { pageContent, url, originalQuery, date } = req.body;
+  
+  if (!pageContent || !url || !originalQuery) {
+    return res.status(400).json({ error: 'Page content, URL, and original query are required' });
+  }
+
+  const currentDate = date ? new Date(date) : new Date();
+  const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+  const SYSTEM_INSTRUCTION = `
+    ${SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate)}
+
+    Additional context:
+    - Original search query: "${originalQuery}"
+    - Current page URL: ${url}
+    - Page content summary: ${pageContent.substring(0, 500)}...
+
+    Your task is to create an advanced search query that will find similar pages to the one the user is currently viewing, taking into account the original search query and the content of the current page.
+  `;
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: SYSTEM_INSTRUCTION },
+        { role: "user", content: "Generate an advanced search query to find similar pages" }
+      ],
+      model: "llama3-8b-8192",
+      temperature: 0.1,
+      max_tokens: 1500,
+      top_p: 1
+    });
+
+    const fullResponse = chatCompletion.choices[0].message.content;
+    const finalResultRegex = /final result:\s*(.*)/i;
+    const finalResultMatch = fullResponse.match(finalResultRegex);
+
+    const advancedQuery = finalResultMatch 
+      ? finalResultMatch[1].trim()
+      : fullResponse.trim();
+
+    console.log('Advanced query for finding similar pages:', advancedQuery);
+    res.json({ advancedQuery });
+
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the find similar request' });
+  }
+});
+
+// ... (rest of the code remains the same)
