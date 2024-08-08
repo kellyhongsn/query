@@ -300,6 +300,7 @@ ${textChunk}
       top_p: 1
     });
 
+    const fullResponse = chatCompletion.choices[0].message.content;
     console.log('Advanced query for finding similar pages:', fullResponse);
     res.json({ fullResponse });
 
