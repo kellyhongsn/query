@@ -245,6 +245,8 @@ app.post('/find-similar', async (req, res) => {
     console.log("original query status", !originalQuery);
     console.log("advanced query status", !advancedQuery);
     console.log("text chunk status", !textChunk);
+    console.log(originalQuery);
+    console.log(textChunk);
 
     return res.status(400).json({ error: 'inputs are required' });
   }
