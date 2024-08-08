@@ -242,6 +242,10 @@ app.post('/find-similar', async (req, res) => {
   const {originalQuery, advancedQuery, textChunk} = req.body;
   
   if (!originalQuery || !advancedQuery || !textChunk) {
+    console.log("original query status", !originalQuery);
+    console.log("advanced query status", !advancedQuery);
+    console.log("text chunk status", !textChunk);
+
     return res.status(400).json({ error: 'inputs are required' });
   }
 
