@@ -279,6 +279,10 @@ Give the final result as your response so I can input that directly into Google 
 
 `;
 
+console.log(originalQuery);
+console.log(advancedQuery);
+console.log(textChunk);
+
 const MESSSAGE_INPUT = `
 User query: ${originalQuery}
 
