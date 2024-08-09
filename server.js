@@ -74,7 +74,7 @@ Go through each of the four steps, briefly explaining your thought process for e
 
 Follow these rules:
 - The current date is {DATE}
-- “Latest” for “research paper” refers to the past 2 years (ex: if the current year is 2024, then use “after: 2022”)
+- If "latest" is in the search query, use “after: 2022”
 - Only use the site: operator for “research paper”, “job search”, and “technical example” queries. Avoid using this for “other” queries.
     - For “research paper”, always use these same sites: “site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi”
     - For “job search”, always use these same sites: “site:greenhouse.io | site:lever.co | site:dover.com | site:jobvite.com | site:myworkdayjobs.com”
