@@ -274,11 +274,8 @@ To create the new search query:
 - Keep any site: operators as is
 - Take out some of the words in the advanced query that do not overlap or do not seem as relevant considering the text chunk
 - Add in new keywords from the text chunk to refine the search query
-- Ensure that the new search query is differnet from the original advanced search query, making it more specific to the text content on the current page
-
-Keywords from the initial search query and the text chunk should have the following weights in the resulting search query (there may be overlap between the two):
-User query: 40%
-Text chunk: 60%
+- Ensure that the new search query is significantly different from the original advanced search query, making it more specific to the text content on the current page
+- at least 40% of the keywords should be changed and they should come from the text chunk
 
 Going through this process, we get the following result:
 (Sleep quality) and (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
