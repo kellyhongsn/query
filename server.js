@@ -328,8 +328,8 @@ Give the final result as your response so I can input that directly into Google 
 - With the example given, the output would simply be “(Sleep quality) AND (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions)”
 `;
 
-const SYSTEM_INSTRUCTION = '';
-const MESSAGE_INPUT = '';
+SYSTEM_INSTRUCTION = '';
+MESSAGE_INPUT = '';
 
 if (!advancedQuery && !originalQuery) {
   SYSTEM_INSTRUCTION = T_SYSTEM_INSTRUCTION;
