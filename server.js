@@ -115,18 +115,25 @@ app.post('/auto-search', async (req, res) => {
   }
 
   console.log(query);
-
   try {
-    // Your existing code here
-    console.log('Processing auto-search request');
-    
-    // Make sure you're sending a response in all cases
-    res.json({ 
-    firstQuery: "testing initial"});
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: "system", content: "give me a simplified search query for this" },
+        { role: "user", content: "research papers on protein structure reconstruction following alphafold and esm papers" }
+      ],
+      model: "gpt-4o",
+      temperature: 0.2,
+      max_tokens: 400,
+      top_p: 1
+    });
+
+    fullResponse = chatCompletion.choices[0].message.content;
+    console.log('testing response:', fullResponse);
+    res.json({ fullResponse });
+
   } catch (error) {
-    console.error('Error in auto-search:', error);
-    // Always send a response, even in case of an error
-    res.status(500).json({ error: 'An internal server error occurred' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the find similar request' });
   }
 });
 
