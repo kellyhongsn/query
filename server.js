@@ -107,6 +107,7 @@ app.post('/auto-search-first', async (req, res) => {
 });
 
 app.post('/auto-search', async (req, res) => {
+
   const { query } = req.body;
 
   if (!query) {
@@ -114,13 +115,13 @@ app.post('/auto-search', async (req, res) => {
   }
 
   console.log(query);
-  
+
   try {
     // Your existing code here
     console.log('Processing auto-search request');
     
     // Make sure you're sending a response in all cases
-    res.json({       searchPlan: "testing plan",
+    res.json({ 
     firstQuery: "testing initial"});
   } catch (error) {
     console.error('Error in auto-search:', error);
