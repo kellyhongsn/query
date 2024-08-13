@@ -31,130 +31,6 @@ Given the user's search query, perform the following steps:
 "
 `;
 
-app.post('/auto-search-first', async (req, res) => {
-  const { query } = req.body;
-
-  console.log("first auto search function entered");
-
-  console.log(query);
-
-  try {
-    res.json({
-      searchPlan: "testing plan",
-      firstQuery: "testing initial"
-    });
-  } catch (err) {
-    console.error('Error processing test', err);
-  }
-  /*
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: AUTO_SYSTEM_INSTRUCTION
-        },
-        {
-          role: "user",
-          content: `Create a search plan and initial query for the following search task: ${query}`
-        }
-      ],
-      response_format: {
-        type: "json_object"
-      },
-      functions: [
-        {
-          name: "create_search_plan",
-          description: "Create a search plan and initial query",
-          parameters: {
-            type: "object",
-            properties: {
-              search_plan: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    step: { type: "string" },
-                    explanation: { type: "string" }
-                  },
-                  required: ["step", "explanation"]
-                },
-                description: "A detailed plan for how to approach the search"
-              },
-              initial_query: {
-                type: "string",
-                description: "The initial search query to start with"
-              }
-            },
-            required: ["search_plan", "initial_query"]
-          }
-        }
-      ],
-      function_call: { name: "create_search_plan" }
-    });
-
-    const result = JSON.parse(completion.choices[0].message.function_call.arguments);
-
-    res.json({
-      searchPlan: result.search_plan,
-      firstQuery: result.initial_query
-    });
-  } catch (error) {
-    console.error('Error in auto search:', error);
-    res.status(500).json({ error: 'An error occurred during auto search processing' });
-  }*/
-});
-
-app.post('/auto-search', async (req, res) => {
-  const { query, date } = req.body;
-  
-  if (!query) {
-    return res.status(400).json({ error: 'Query is required' });
-  }
-  console.log(query);
-  console.log(date);
-
-  const currentDate = date ? new Date(date) : new Date();
-  const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-
-  const SYSTEM_INSTRUCTION = SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate);
-
-  try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        { role: "system", content: SYSTEM_INSTRUCTION },
-        { role: "user", content: query }
-      ],
-      model: "llama3-8b-8192",
-      temperature: 0.2,  
-      max_tokens: 1500,  // Adjust as needed
-      top_p: 1,
-      stream: false
-    });
-
-    const fullResponse = chatCompletion.choices[0].message.content;
-
-    console.log(fullResponse);
-
-    const finalResultRegex = /final result:\s*(.*)/i;
-    const finalResultMatch = fullResponse.match(finalResultRegex);
-
-    console.log(finalResultMatch);
-
-    const advancedQuery = finalResultMatch 
-      ? finalResultMatch[1].trim().toLowerCase() 
-      : fullResponse.toLowerCase();
-
-    console.log('Advanced query:', advancedQuery);
-    res.json({ advancedQuery });
-
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'An error occurred while processing the query' });
-  }
-});
-
 
 async function initDatabase() {
   const client = await pool.connect();
@@ -286,6 +162,80 @@ User query: “How to set up a home network for optimal speed and security”
     * Security -> secure network | network security | protect
 4. Create an optimized search query using the following Google search operators as needed: (home networking | home internet setup | home WiFi) (fast internet | high speed internet | improve speed) (secure network | network security | protect)
 Final result: (home networking | home internet setup | home WiFi) (fast internet | high speed internet | improve speed) (secure network | network security | protect)`;
+
+app.post('/auto-search-first', async (req, res) => {
+  const { query } = req.body;
+
+  console.log("first auto search function entered");
+
+  console.log(query);
+
+  try {
+    res.json({
+      firstQuery: "testing initial"
+    });
+  } catch (err) {
+    console.error('Error processing test', err);
+  }
+  /*
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: AUTO_SYSTEM_INSTRUCTION
+        },
+        {
+          role: "user",
+          content: `Create a search plan and initial query for the following search task: ${query}`
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      },
+      functions: [
+        {
+          name: "create_search_plan",
+          description: "Create a search plan and initial query",
+          parameters: {
+            type: "object",
+            properties: {
+              search_plan: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    step: { type: "string" },
+                    explanation: { type: "string" }
+                  },
+                  required: ["step", "explanation"]
+                },
+                description: "A detailed plan for how to approach the search"
+              },
+              initial_query: {
+                type: "string",
+                description: "The initial search query to start with"
+              }
+            },
+            required: ["search_plan", "initial_query"]
+          }
+        }
+      ],
+      function_call: { name: "create_search_plan" }
+    });
+
+    const result = JSON.parse(completion.choices[0].message.function_call.arguments);
+
+    res.json({
+      searchPlan: result.search_plan,
+      firstQuery: result.initial_query
+    });
+  } catch (error) {
+    console.error('Error in auto search:', error);
+    res.status(500).json({ error: 'An error occurred during auto search processing' });
+  }*/
+});
 
 app.post('/reformat-query', async (req, res) => {
   const { query, date } = req.body;
