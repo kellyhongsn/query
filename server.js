@@ -107,6 +107,14 @@ app.post('/auto-search-first', async (req, res) => {
 });
 
 app.post('/auto-search', async (req, res) => {
+  const { query } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+
+  console.log(query);
+  
   try {
     // Your existing code here
     console.log('Processing auto-search request');
