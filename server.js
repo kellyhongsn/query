@@ -170,7 +170,7 @@ app.post('/auto-search-first', async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-2024-08-06",
       messages: [
         {
           role: "system",
@@ -182,13 +182,11 @@ app.post('/auto-search-first', async (req, res) => {
         }
       ],
       response_format: {
-        type: "json_object"
-      },
-      functions: [
-        {
-          name: "create_search_plan",
-          description: "Create a search plan and initial query",
-          parameters: {
+        type: "json_schema",
+        json_schema: {
+          name: "search_plan_response",
+          strict: true,
+          schema: {
             type: "object",
             properties: {
               search_plan: {
@@ -199,23 +197,20 @@ app.post('/auto-search-first', async (req, res) => {
                     step: { type: "string" },
                     explanation: { type: "string" }
                   },
-                  required: ["step", "explanation"]
-                },
-                description: "A detailed plan for how to approach the search"
+                  required: ["step", "explanation"],
+                  additionalProperties: false
+                }
               },
-              initial_query: {
-                type: "string",
-                description: "The initial search query to start with"
-              }
+              initial_query: { type: "string" }
             },
-            required: ["search_plan", "initial_query"]
+            required: ["search_plan", "initial_query"],
+            additionalProperties: false
           }
         }
-      ],
-      function_call: { name: "create_search_plan" }
+      }
     });
 
-    const result = JSON.parse(completion.choices[0].message.function_call.arguments);
+    const result = JSON.parse(completion.choices[0].message.content);
 
     res.json({
       searchPlan: result.search_plan,
