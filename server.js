@@ -106,6 +106,20 @@ app.post('/auto-search-first', async (req, res) => {
   }*/
 });
 
+app.post('/auto-search', async (req, res) => {
+  try {
+    // Your existing code here
+    console.log('Processing auto-search request');
+    
+    // Make sure you're sending a response in all cases
+    res.json({ result: 'Success' });
+  } catch (error) {
+    console.error('Error in auto-search:', error);
+    // Always send a response, even in case of an error
+    res.status(500).json({ error: 'An internal server error occurred' });
+  }
+});
+
 async function initDatabase() {
   const client = await pool.connect();
   try {
