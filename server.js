@@ -112,7 +112,8 @@ app.post('/auto-search', async (req, res) => {
     console.log('Processing auto-search request');
     
     // Make sure you're sending a response in all cases
-    res.json({ result: 'Success' });
+    res.json({       searchPlan: "testing plan",
+    firstQuery: "testing initial"});
   } catch (error) {
     console.error('Error in auto-search:', error);
     // Always send a response, even in case of an error
