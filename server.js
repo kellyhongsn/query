@@ -168,16 +168,6 @@ app.post('/auto-search-first', async (req, res) => {
 
   console.log("first auto search function entered");
 
-  console.log(query);
-
-  try {
-    res.json({
-      firstQuery: "testing initial"
-    });
-  } catch (err) {
-    console.error('Error processing test', err);
-  }
-  /*
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -234,7 +224,7 @@ app.post('/auto-search-first', async (req, res) => {
   } catch (error) {
     console.error('Error in auto search:', error);
     res.status(500).json({ error: 'An error occurred during auto search processing' });
-  }*/
+  }
 });
 
 app.post('/reformat-query', async (req, res) => {
