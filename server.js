@@ -241,46 +241,14 @@ app.get('/get-waitlist', async (req, res) => {
 });
 
 app.post('/find-similar', async (req, res) => {
-  const {originalQuery, advancedQuery, textChunk} = req.body;
+  const {originalQuery, textChunk, currentTitle} = req.body;
   
   if (!textChunk) {
     return res.status(400).json({ error: 'textChunk required' });
   }
 
-  const OAT_SYSTEM_INSTRUCTION = `
-  You are an advanced AI assistant specialized in crafting optimized Google search queries to find similar websites for an iterative search experience. Given the user’s initial search query, an advanced version of that initial search query, and a text chunk of the website they are currently on, your task is to create a new search query considering all of this information that will return similar results to the website they are currently on while keeping their initial intent in mind.
-
-You will be given a prompt in the following format: “””
-User query: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions
-
-Advanced query: Sleep (quality | habits | patterns) impact on ("neurodegenerative diseases" | neurodegeneration | Alzheimer's | Parkinson's | "cognitive decline") (prevent | recommendations | strategies | interventions) AND (research | study | paper | meta-analysis) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
-
-Text chunk:
-Trouble falling or staying asleep, poor sleep quality, and short or long sleep duration are gaining attention as potential risk factors for cognitive decline and dementia, including Alzheimer's disease (AD). Sleep-disordered breathing (SDB) has also been linked to these outcomes. Here, we review recent observational and experimental studies investigating the effect of poor sleep on cognitive outcomes and AD and discuss possible mechanisms.
-Recent findings
-Observational studies with self-report and objective sleep measures (e.g., wrist actigraphy, polysomnography) support links between disturbed sleep and cognitive decline. Several recently published studies demonstrate associations between sleep variables and measures of AD pathology, including cerebrospinal fluid measures (CSF) of Aβ and positron emission tomography (PET) measures of Aβ deposition. In addition, experimental studies suggest that sleep loss alters CSF Aβ dynamics, that decrements in slow-wave sleep may decrease the clearance of Aβ from the brain, and that hypoxemia characteristic of SDB increases Aβ production.
-Summary
-Findings indicate that poor sleep is a risk factor for cognitive decline and AD. Although mechanisms underlying these associations are not yet clear, healthy sleep appears to play an important role in maintaining brain health with age, and may play a key role in AD prevention.
-Keywords: sleep, apnea, cognitive decline, dementia, amyloid”””
-
-To create the new search query:
-- Keep the general structure of the advanced query, and keep words that overlap with the text chunk
-- Keep any site: operators as is
-- Take out some of the words in the advanced query that do not overlap or do not seem as relevant considering the text chunk
-- Add in new keywords from the text chunk to refine the search query
-- Ensure that the new search query is significantly different from the original advanced search query, making it more specific to the text content on the current page
-- at least 40% of the keywords should be changed and they should come from the text chunk
-
-Going through this process, we get the following result:
-(Sleep quality) and (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
-
-Give the final result as your response so I can input that directly into Google search. Avoid providing additional details or steps, simply provide the new resulting search query as output.
-- With the example given, the output would simply be “(Sleep quality) and (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions) site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi”
-
-`;
-
 const OT_SYSTEM_INSTRUCTION = `
-You are an advanced AI assistant specialized in crafting optimized Google search queries to find similar websites for an iterative search experience. Given the user’s initial search query and a text chunk of the website they are currently on, your task is to create a new search query considering all of this information that will return similar results to the website they are currently on while keeping their initial intent in mind.
+You are an advanced AI assistant specialized in crafting optimized Google search queries to get similar search results. Given the user’s initial search query and a text chunk of the website they are currently on, your task is to create a new search query considering all of this information that will return similar results to the website they are currently on while keeping their initial intent in mind.
 
 You will be given a prompt in the following format: “””
 User query: Research exploring the relationship between sleep quality and neurodegenerative diseases, focusing on potential preventive interventions
@@ -291,17 +259,32 @@ Recent findings
 Observational studies with self-report and objective sleep measures (e.g., wrist actigraphy, polysomnography) support links between disturbed sleep and cognitive decline. Several recently published studies demonstrate associations between sleep variables and measures of AD pathology, including cerebrospinal fluid measures (CSF) of Aβ and positron emission tomography (PET) measures of Aβ deposition. In addition, experimental studies suggest that sleep loss alters CSF Aβ dynamics, that decrements in slow-wave sleep may decrease the clearance of Aβ from the brain, and that hypoxemia characteristic of SDB increases Aβ production.
 Summary
 Findings indicate that poor sleep is a risk factor for cognitive decline and AD. Although mechanisms underlying these associations are not yet clear, healthy sleep appears to play an important role in maintaining brain health with age, and may play a key role in AD prevention.
-Keywords: sleep, apnea, cognitive decline, dementia, amyloid”””
+Keywords: sleep, apnea, cognitive decline, dementia, amyloid”””
 
 To create the new search query:
-- Reformat the search query so it’s more interpretable by Google
-- Add in new keywords from the text chunk to refine the search query
+Extract relevant keywords from the text chunk
+Combine this with the user query, but the majority of words should come from the text chunk to make the search highly specific
+If the original search query uses any search operators (site: , inurl: , after: ), keep these search operators exactly as is
 
 Going through this process, we get the following result:
 (Sleep quality) AND (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions)
 
 Give the final result as your response so I can input that directly into Google search. Avoid providing additional details or steps, simply provide the new resulting search query as output.
 - With the example given, the output would simply be “(Sleep quality) AND (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions)”
+
+Another example with search operators would be:
+
+Input: “””
+User query: sleep (quality | habits | patterns) impact on ("neurodegenerative diseases" | neurodegeneration | alzheimer's | parkinson's | "cognitive decline") (prevent | recommendations | strategies | interventions) (research | study | paper | meta-analysis) after:2022 site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi
+
+Text chunk: 
+Trouble falling or staying asleep, poor sleep quality, and short or long sleep duration are gaining attention as potential risk factors for cognitive decline and dementia, including Alzheimer's disease (AD). Sleep-disordered breathing (SDB) has also been linked to these outcomes. Here, we review recent observational and experimental studies investigating the effect of poor sleep on cognitive outcomes and AD and discuss possible mechanisms.
+Recent findings
+Observational studies with self-report and objective sleep measures (e.g., wrist actigraphy, polysomnography) support links between disturbed sleep and cognitive decline. Several recently published studies demonstrate associations between sleep variables and measures of AD pathology, including cerebrospinal fluid measures (CSF) of Aβ and positron emission tomography (PET) measures of Aβ deposition. In addition, experimental studies suggest that sleep loss alters CSF Aβ dynamics, that decrements in slow-wave sleep may decrease the clearance of Aβ from the brain, and that hypoxemia characteristic of SDB increases Aβ production.
+Summary
+Findings indicate that poor sleep is a risk factor for cognitive decline and AD. Although mechanisms underlying these associations are not yet clear, healthy sleep appears to play an important role in maintaining brain health with age, and may play a key role in AD prevention.
+Keywords: sleep, apnea, cognitive decline, dementia, amyloid”””
+Response: “(Sleep quality) AND (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions) after:2022 site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi”
 
 `;
 
@@ -331,13 +314,13 @@ Give the final result as your response so I can input that directly into Google 
 SYSTEM_INSTRUCTION = '';
 MESSAGE_INPUT = '';
 
-if (!advancedQuery && !originalQuery) {
+if (!originalQuery) {
   SYSTEM_INSTRUCTION = T_SYSTEM_INSTRUCTION;
   MESSAGE_INPUT = `
   Text chunk:
   ${textChunk}
   `;
-} else if (!advancedQuery && originalQuery) {
+} else {
   SYSTEM_INSTRUCTION = OT_SYSTEM_INSTRUCTION;
   MESSAGE_INPUT = `
 User query: ${originalQuery}
@@ -345,20 +328,9 @@ User query: ${originalQuery}
 Text chunk:
 ${textChunk}
 `;
-} else if (advancedQuery && originalQuery) {
-  SYSTEM_INSTRUCTION = OAT_SYSTEM_INSTRUCTION;
+} 
 
-  MESSAGE_INPUT = `
-User query: ${originalQuery}
-
-Advanced query: ${advancedQuery}
-
-Text chunk:
-${textChunk}
-`;
-}
 console.log(originalQuery);
-console.log(advancedQuery);
 console.log(textChunk);
 
   try {
@@ -373,7 +345,12 @@ console.log(textChunk);
       top_p: 1
     });
 
-    const fullResponse = chatCompletion.choices[0].message.content;
+    fullResponse = chatCompletion.choices[0].message.content;
+
+    if (currentTitle) {
+      const toRemove = " -intitle:\"" + currentTitle + "\"";
+      fullResponse = fullResponse + toRemove;
+    }
     console.log('Advanced query for finding similar pages:', fullResponse);
     res.json({ fullResponse });
 
