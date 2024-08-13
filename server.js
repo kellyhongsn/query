@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const Groq = require('groq-sdk');
 const OpenAI = require('openai');
+const { PromptTemplate } = require("langchain/prompts");
+const { LLMChain } = require("langchain/chains");
 const { Pool } = require('pg');
 const app = express();
 const cors = require('cors');
@@ -21,6 +23,82 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
+  }
+});
+
+const model = new OpenAI({ 
+  ApiKey: process.env.OPENAI_API_KEY,
+  modelName: "gpt-4o"
+});
+
+AUTO_SYSTEM_INSTRUCTION = `
+Given the user's search query, perform the following steps:
+1) Create a plan for the best way to search this
+2) Construct the first search query to start with
+"
+`;
+
+app.post('/auto-search-first', async (req, res) => {
+  const { query } = req.body;
+
+  console.log("first auto search function entered");
+  
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-2024-08-06",
+      messages: [
+        {
+          role: "system",
+          content: AUTO_SYSTEM_INSTRUCTION
+        },
+        {
+          role: "user",
+          content: `Create a search plan and initial query for the following search task: ${query}`
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      },
+      functions: [
+        {
+          name: "create_search_plan",
+          description: "Create a search plan and initial query",
+          parameters: {
+            type: "object",
+            properties: {
+              search_plan: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    step: { type: "string" },
+                    explanation: { type: "string" }
+                  },
+                  required: ["step", "explanation"]
+                },
+                description: "A detailed plan for how to approach the search"
+              },
+              initial_query: {
+                type: "string",
+                description: "The initial search query to start with"
+              }
+            },
+            required: ["search_plan", "initial_query"]
+          }
+        }
+      ],
+      function_call: { name: "create_search_plan" }
+    });
+
+    const result = JSON.parse(completion.choices[0].message.function_call.arguments);
+
+    res.json({
+      searchPlan: result.search_plan,
+      firstQuery: result.initial_query
+    });
+  } catch (error) {
+    console.error('Error in auto search:', error);
+    res.status(500).json({ error: 'An error occurred during auto search processing' });
   }
 });
 
