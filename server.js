@@ -32,12 +32,17 @@ Given the user's search query, perform the following steps:
 `;
 
 app.post('/auto-search-first', async (req, res) => {
-  console.log(req.body);
-  console.log(!req.body);
   const { query } = req.body;
 
   console.log("first auto search function entered");
-  
+
+  console.log(query);
+
+  res.json({
+    searchPlan: "testing plan",
+    firstQuery: "testing initial"
+  });
+  /*
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -94,7 +99,7 @@ app.post('/auto-search-first', async (req, res) => {
   } catch (error) {
     console.error('Error in auto search:', error);
     res.status(500).json({ error: 'An error occurred during auto search processing' });
-  }
+  }*/
 });
 
 async function initDatabase() {
