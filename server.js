@@ -24,7 +24,7 @@ const pool = new Pool({
   }
 });
 
-AUTO_SYSTEM_INSTRUCTION = `
+const AUTO_SYSTEM_INSTRUCTION = `
 Given the user's search query, perform the following steps:
 1) Create a plan for the best way to search this
 2) Construct the first search query to start with
