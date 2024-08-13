@@ -2,8 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const Groq = require('groq-sdk');
 const OpenAI = require('openai');
-const { PromptTemplate } = require("langchain/prompts");
-const { LLMChain } = require("langchain/chains");
 const { Pool } = require('pg');
 const app = express();
 const cors = require('cors');
@@ -24,11 +22,6 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   }
-});
-
-const model = new OpenAI({ 
-  ApiKey: process.env.OPENAI_API_KEY,
-  modelName: "gpt-4o"
 });
 
 AUTO_SYSTEM_INSTRUCTION = `
