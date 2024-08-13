@@ -38,10 +38,14 @@ app.post('/auto-search-first', async (req, res) => {
 
   console.log(query);
 
-  res.json({
-    searchPlan: "testing plan",
-    firstQuery: "testing initial"
-  });
+  try {
+    res.json({
+      searchPlan: "testing plan",
+      firstQuery: "testing initial"
+    });
+  } catch (err) {
+    console.error('Error processing test', err);
+  }
   /*
   try {
     const completion = await openai.chat.completions.create({
