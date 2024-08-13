@@ -32,6 +32,8 @@ Given the user's search query, perform the following steps:
 `;
 
 app.post('/auto-search-first', async (req, res) => {
+  console.log(req.body);
+  console.log(!req.body);
   const { query } = req.body;
 
   console.log("first auto search function entered");
