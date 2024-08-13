@@ -107,35 +107,54 @@ app.post('/auto-search-first', async (req, res) => {
 });
 
 app.post('/auto-search', async (req, res) => {
-
-  const { query } = req.body;
-
+  const { query, date } = req.body;
+  
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
   }
-
   console.log(query);
+  console.log(date);
+
+  const currentDate = date ? new Date(date) : new Date();
+  const formattedDate = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+  const SYSTEM_INSTRUCTION = SYSTEM_INSTRUCTION_TEMPLATE.replace('{DATE}', formattedDate);
+
   try {
-    const chatCompletion = await openai.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [
-        { role: "system", content: "give me a simplified search query for this" },
-        { role: "user", content: "research papers on protein structure reconstruction following alphafold and esm papers" }
+        { role: "system", content: SYSTEM_INSTRUCTION },
+        { role: "user", content: query }
       ],
-      model: "gpt-4o",
-      temperature: 0.2,
-      max_tokens: 400,
-      top_p: 1
+      model: "llama3-8b-8192",
+      temperature: 0.2,  
+      max_tokens: 1500,  // Adjust as needed
+      top_p: 1,
+      stream: false
     });
 
-    fullResponse = chatCompletion.choices[0].message.content;
-    console.log('testing response:', fullResponse);
-    res.json({ fullResponse });
+    const fullResponse = chatCompletion.choices[0].message.content;
+
+    console.log(fullResponse);
+
+    const finalResultRegex = /final result:\s*(.*)/i;
+    const finalResultMatch = fullResponse.match(finalResultRegex);
+
+    console.log(finalResultMatch);
+
+    const advancedQuery = finalResultMatch 
+      ? finalResultMatch[1].trim().toLowerCase() 
+      : fullResponse.toLowerCase();
+
+    console.log('Advanced query:', advancedQuery);
+    res.json({ advancedQuery });
 
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: 'An error occurred while processing the find similar request' });
+    res.status(500).json({ error: 'An error occurred while processing the query' });
   }
 });
+
 
 async function initDatabase() {
   const client = await pool.connect();
