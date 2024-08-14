@@ -1,4 +1,4 @@
-const { openai } = require('../utils/openaiConfig');
+const { openai } = require('../utils/config');
 
 async function autoSearchPlan(query) {
   const chatCompletion = await openai.chat.completions.create({
