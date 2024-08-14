@@ -30,6 +30,8 @@ async function initialPass() {
 
     const finalResult = chatCompletion.choices[0].message.content + "site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
 
+    console.log(finalResult);
+    
     return finalResult;
 }
 
@@ -107,7 +109,7 @@ async function autoSearch(query) {
 
     firstQuery = initialPass();
 
-    //results = resultsRetrieval(firstQuery);
+    results = resultsRetrieval(firstQuery);
 
     //top_3_results = rerankerEval(results);
 
