@@ -113,7 +113,7 @@ async function reformatQuery(query, date) {
   const systemInstruction = SYSTEM_INSTRUCTION.replace('{DATE}', formattedDate);
 
   const chatCompletion = await groq.chat.completions.create({
-    model: "gpt-4-turbo",
+    model: "llama3-8b-8192",
     messages: [
       { role: "system", content: systemInstruction },
       { role: "user", content: query }

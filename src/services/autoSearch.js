@@ -42,7 +42,7 @@ async function autoSearchPlan(query) {
     }
   });
 
-  const result = JSON.parse(completion.choices[0].message.content);
+  const result = JSON.parse(chatCompletion.choices[0].message.content);
 
   return {
     searchPlan: result.search_plan,
