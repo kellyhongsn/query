@@ -27,11 +27,12 @@ async function initialPass() {
         temperature: 0.2,
         max_tokens: 200,
     });
+    let content = chatCompletion.choices[0].message.content.replace(/['"]/g, '');
 
-    const finalResult = chatCompletion.choices[0].message.content + "site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+    const finalResult = content + "site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
 
     console.log(finalResult);
-    
+
     return finalResult;
 }
 
@@ -107,9 +108,9 @@ async function rerankerEval(organicResults) {
 async function autoSearch(query) {
     originalQuery = query;
 
-    firstQuery = initialPass();
+    firstQuery = await initialPass();
 
-    results = resultsRetrieval(firstQuery);
+    results = await resultsRetrieval(firstQuery);
 
     //top_3_results = rerankerEval(results);
 
