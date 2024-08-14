@@ -29,7 +29,7 @@ async function initialPass() {
     });
     let content = chatCompletion.choices[0].message.content.replace(/['"]/g, '');
 
-    const finalResult = content + "site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+    const finalResult = content + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
 
     console.log(finalResult);
 
@@ -55,6 +55,7 @@ async function resultsRetrieval(searchQuery) {
 
     try {
         const response = await axios(config);
+
         return response.data.organic || [];
     } catch (error) {
         console.error('Error fetching search results:', error);
@@ -112,7 +113,7 @@ async function autoSearch(query) {
 
     results = await resultsRetrieval(firstQuery);
 
-    //top_3_results = rerankerEval(results);
+    top_3_results = rerankerEval(results);
 
     return {
         searchPlan: "filler for now",
