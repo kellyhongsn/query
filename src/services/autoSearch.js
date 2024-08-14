@@ -107,9 +107,9 @@ async function autoSearch(query) {
 
     firstQuery = initialPass();
 
-    results = resultsRetrieval(firstQuery);
+    //results = resultsRetrieval(firstQuery);
 
-    top_3_results = rerankerEval(results);
+    //top_3_results = rerankerEval(results);
 
     return {
         searchPlan: "filler for now",
