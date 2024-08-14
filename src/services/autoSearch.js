@@ -1,6 +1,6 @@
 const { openai } = require('../utils/config');
 
-async function autoSearchPlan(query) {
+async function autoSearch(query) {
   const chatCompletion = await openai.chat.completions.create({
     model: "gpt-4o-2024-08-06",
     messages: [
@@ -50,4 +50,4 @@ async function autoSearchPlan(query) {
   };
 }
 
-module.exports = { autoSearchPlan };
+module.exports = { autoSearch };

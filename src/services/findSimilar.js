@@ -86,7 +86,7 @@ async function findSimilar(originalQuery, textChunk, currentTitle) {
     } 
       
     const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4O",
+        model: "gpt-4o",
         messages: [
         { role: "system", content: SYSTEM_INSTRUCTION },
         { role: "user", content: MESSAGE_INPUT }
