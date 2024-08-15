@@ -181,6 +181,7 @@ async function secondIteration(rerankedResults) {
     
         } catch (error) {
             console.error('Error extracting content:', error);
+            return `${result.title} ${result.snippet}`;
         }
     }
 
