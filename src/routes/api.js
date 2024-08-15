@@ -36,7 +36,7 @@ router.post('/find-similar', async (req, res) => {
   }
 });
 
-router.post('/auto-search', async (req, res) => {
+router.get('/auto-search', async (req, res) => {
   const { query } = req.body;
 
   if (!query) {
