@@ -95,12 +95,151 @@ async function rerankerEval(organicResults) {
     }
 }
 
-//llm eval
+//llm eval, are there at least 2 highly relevant sources?
+async function llmEval(organicResults) {
+    const LLM_EVAL_INSTRUCTION = `
+    Given these search results, determine whether there are highly relevant sources that a human would click on.
+    Consider the content of the results (title and snippet), as well as the source credibility.
+    Think through this in steps, then provide a structured output indicating whether highly relevant and credible sources exist, and if so, their positions.
+    `;
 
+    // Format the organic results as specified
+    const MESSAGE_INPUT = organicResults.map(result => 
+        `-
+        "title": "${result.title}",
+        "link": "${result.link}",
+        "snippet": "${result.snippet}",
+        "position": ${result.position}
+        -`
+    ).join('\n');
 
-//evaluate relevance of top 8 results, are there at least 2 highly relevant sources?
+    const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: LLM_EVAL_INSTRUCTION },
+            { role: "user", content: MESSAGE_INPUT }
+        ],
+        temperature: 0.2,
+        max_tokens: 500,
+        response_format: {
+            type: "json_object",
+            schema: {
+                type: "object",
+                properties: {
+                    relevantSourcesExist: {
+                        type: "boolean",
+                        description: "Indicates whether highly relevant and credible sources exist"
+                    },
+                    relevantPositions: {
+                        type: "array",
+                        items: {
+                            type: "integer"
+                        },
+                        description: "Array of positions corresponding to highly relevant and credible sources"
+                    }
+                },
+                required: ["relevantSourcesExist", "relevantPositions"]
+            }
+        }
+    });
+
+    const result = JSON.parse(chatCompletion.choices[0].message.content);
+
+    if (!result.relevantSourcesExist) {
+        //split up query and repeat process
+    }
+
+    return result;
+
+}
 
 //get keywords from top research papers and redo search to get even more relevant results
+async function secondIteration(rerankedResults) {
+
+    console.log("entered second iteration");
+
+    //extract text chunk from each reranked result, 4000 characters
+    async function extractTextFromResult(result) {
+        console.log("extracting text from result function");
+
+        try {
+            const response = await axios.get(`https://r.jina.ai/${result.link}`);
+            const html = response.data;
+    
+            const startIndex = html.indexOf("Markdown Content:") + "Markdown Content:".length;
+    
+            if (startIndex === -1) {
+                throw new Error('Markdown Content not found');
+            }
+    
+            const markdownContent = html.substring(startIndex).trim();
+    
+            const first4000Chars = markdownContent.substring(0, 4000);
+    
+            console.log(first4000Chars.substring(0,100));
+            return first4000Chars;
+    
+        } catch (error) {
+            console.error('Error extracting content:', error);
+        }
+    }
+
+    function removeResults(resultsArray) {
+        const uniqueIdentifiers = new Set();
+        
+        const uniqueResults = resultsArray.flatMap(result => result.organic).filter(item => {
+
+            const identifier = `${item.title.toLowerCase()}|${item.link.toLowerCase()}`;
+            
+            if (uniqueIdentifiers.has(identifier)) {
+                return false;
+            } else {
+                uniqueIdentifiers.add(identifier); 
+                return true; 
+            }
+        });
+    
+        return uniqueResults;
+    }
+
+    const textChunks = await Promise.all(rerankedResults.map(extractTextFromResult));
+
+    const specificQueries = await Promise.all(textChunks.map(constructSpecificQuery));
+
+    const specificResults = await Promise.all(specificQueries.map(resultsRetrieval));
+
+    const cleanedResults = specificResults.map(removeResults);
+
+    return rerankerEval(cleanedResults);
+}
+
+async function constructSpecificQuery(textChunk) {
+    console.log("entered construct specific query function");
+
+    SPECIFIC_INSTRUCTION = `
+    Given that the user wants to find ${originalQuery}, and they have found a relevant source, construct a more specific search query that will retrieve more relevant and specific results.
+    The user's input will be a text chunk from the source they deem as relevent.
+    Ensure that the new search query maintains the user's intent, but makes it more specific so it will return different results than the initial general search.
+
+    Simply return the search query that can be inputted into Google search.
+    `;
+
+    const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+        { role: "system", content: SPECIFIC_INSTRUCTION },
+        { role: "user", content: textChunk }
+        ],
+        temperature: 0.2,
+        max_tokens: 200,
+    });
+
+    const specificQuery = chatCompletion.choices[0].message.content + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+
+    console.log(specificQuery);
+    
+    return specificQuery;
+}
 
 //if inital results are not relevant, then split up query into smaller parts
 
@@ -115,58 +254,12 @@ async function autoSearch(query) {
 
     top_3_results = rerankerEval(results);
 
+    more_results = secondIteration(top_3_results);
+
     return {
         searchPlan: "filler for now",
         firstQuery: firstQuery
     };
-/*
-    const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-2024-08-06",
-        messages: [
-        {
-            role: "system",
-            content: AUTO_SYSTEM_INSTRUCTION
-        },
-        {
-            role: "user",
-            content: `Create a search plan and initial query for the following search task: ${query}`
-        }
-        ],
-        response_format: {
-        type: "json_schema",
-        json_schema: {
-            name: "search_plan_response",
-            strict: true,
-            schema: {
-            type: "object",
-            properties: {
-                search_plan: {
-                type: "array",
-                items: {
-                    type: "object",
-                    properties: {
-                    step: { type: "string" },
-                    explanation: { type: "string" }
-                    },
-                    required: ["step", "explanation"],
-                    additionalProperties: false
-                }
-                },
-                initial_query: { type: "string" }
-            },
-            required: ["search_plan", "initial_query"],
-            additionalProperties: false
-            }
-        }
-        }
-    });
-
-    const result = JSON.parse(chatCompletion.choices[0].message.content);
-
-    return {
-        searchPlan: result.search_plan,
-        firstQuery: result.initial_query
-    };*/
 }
 
 module.exports = { autoSearch };
