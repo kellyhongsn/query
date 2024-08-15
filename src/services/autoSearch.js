@@ -272,7 +272,9 @@ async function constructSpecificQuery(textChunk) {
 //return 5 highly relevant sources
 
 async function autoSearch(query, res) {
-
+    
+    originalQuery = query;
+    
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
