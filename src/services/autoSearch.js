@@ -254,9 +254,9 @@ async function autoSearch(query) {
 
     results = await resultsRetrieval(firstQuery);
 
-    top_3_results = rerankerEval(results);
+    top_3_results = await rerankerEval(results);
 
-    more_results = secondIteration(top_3_results);
+    more_results = await secondIteration(top_3_results);
 
     return {
         searchPlan: "filler for now",
