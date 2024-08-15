@@ -37,7 +37,7 @@ router.post('/find-similar', async (req, res) => {
 });
 
 router.get('/auto-search', async (req, res) => {
-  const { query } = req.body;
+  const { query } = req.query;
 
   if (!query) {
     return res.status(400).json({ error: 'Query is required' });
