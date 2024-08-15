@@ -13,6 +13,7 @@ Given the user's search query, perform the following steps:
 //simplify request down to keywords (llama), add site: operators
 async function initialPass() {
     console.log("entered initial pass function");
+    /*
     const INITIAL_INSTRUCTION = `
     You are a helpful assistant that can help the user find information on a topic.
     You will be given a query in natural language, and you will return a search query that is a simplified version that captures keywords.
@@ -33,8 +34,8 @@ async function initialPass() {
         max_tokens: 200,
     });
     let content = chatCompletion.choices[0].message.content.replace(/['"]/g, '');
-
-    const finalResult = content + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+*/
+    const finalResult = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
 
     console.log(finalResult);
 
@@ -274,7 +275,7 @@ async function constructSpecificQuery(textChunk) {
 async function autoSearch(query, res) {
     
     originalQuery = query;
-    
+
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -290,7 +291,7 @@ async function autoSearch(query, res) {
         sendUpdate('firstQuery', { query: firstQuery });
 
         const results = await resultsRetrieval(firstQuery);
-        sendUpdate('initialResults', { results: results.slice(0, 10) });
+        sendUpdate('initialResults', { results: results });
 
         const top_3_results = await rerankerEval(results);
         sendUpdate('topResults', { results: top_3_results });
