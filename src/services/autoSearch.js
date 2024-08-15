@@ -291,13 +291,13 @@ async function autoSearch(query, res) {
         sendUpdate('firstQuery', { query: firstQuery });
 
         const results = await resultsRetrieval(firstQuery);
-        sendUpdate('initialResults', { results: results });
+        sendUpdate('initialResults', { initialResults: results });
 
         const top_3_results = await rerankerEval(results);
-        sendUpdate('topResults', { results: top_3_results });
+        sendUpdate('topResults', { topResults: top_3_results });
 
         const more_results = await secondIteration(top_3_results);
-        sendUpdate('finalResults', { results: more_results });
+        sendUpdate('finalResults', { finalResults: more_results });
 
         res.write('event: close\ndata: done\n\n');
         res.end();
