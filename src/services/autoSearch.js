@@ -208,8 +208,12 @@ async function secondIteration(rerankedResults) {
 
     const specificQueries = await Promise.all(textChunks.map(constructSpecificQuery));
 
+    console.log(specificQueries);
+
     const specificResults = await Promise.all(specificQueries.map(resultsRetrieval));
 
+    console.log(specificResults);
+    
     const cleanedResults = specificResults.map(removeResults);
 
     return rerankerEval(cleanedResults);
