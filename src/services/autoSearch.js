@@ -14,15 +14,20 @@ Given the user's search query, perform the following steps:
 async function initialPass() {
     console.log("entered initial pass function");
     const INITIAL_INSTRUCTION = `
-    Convert the user's input search query into keywords that is interpretable by Google.
-    Simply return the reformatted query so your output can be directly inputted into Google without including any other kind of text. Just the query to be searched with.
+    You are a helpful assistant that can help the user find information on a topic.
+    You will be given a query in natural language, and you will return a search query that is a simplified version that captures keywords.
+    `;
+
+    const INPUT = `
+    Here is the user's query: ${originalQuery}
+    Simplified version:
     `;
 
     const chatCompletion = await groq.chat.completions.create({
         model: "llama3-8b-8192",
         messages: [
           { role: "system", content: INITIAL_INSTRUCTION },
-          { role: "user", content: originalQuery }
+          { role: "user", content: INPUT }
         ],
         temperature: 0.2,
         max_tokens: 200,
@@ -290,7 +295,7 @@ async function autoSearch(query, res) {
 
         const more_results = await secondIteration(top_3_results);
         sendUpdate('finalResults', { results: more_results });
-        
+
         res.write('event: close\ndata: done\n\n');
         res.end();
     } catch (error) {
