@@ -202,6 +202,8 @@ async function secondIteration(rerankedResults) {
         return uniqueResults;
     }
 
+    console.log('rerankedResults:', rerankedResults);
+
     const textChunks = await Promise.all(rerankedResults.map(extractTextFromResult));
 
     const specificQueries = await Promise.all(textChunks.map(constructSpecificQuery));
@@ -237,7 +239,7 @@ async function constructSpecificQuery(textChunk) {
     const specificQuery = chatCompletion.choices[0].message.content + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
 
     console.log(specificQuery);
-    
+
     return specificQuery;
 }
 
