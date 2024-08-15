@@ -14,8 +14,8 @@ Given the user's search query, perform the following steps:
 async function initialPass() {
     console.log("entered initial pass function");
     const INITIAL_INSTRUCTION = `
-    Convert this search query into keywords that is interpretable by Google.
-    Simply return the reformatted query.
+    Convert the user's input search query into keywords that is interpretable by Google.
+    Simply return the reformatted query without providing any additional detail so this can be directly inputted into Google.
     `;
 
     const chatCompletion = await groq.chat.completions.create({
