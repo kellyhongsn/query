@@ -44,8 +44,7 @@ router.post('/auto-search', async (req, res) => {
   }
 
   try {
-    const result = await autoSearch(query);
-    res.json(result);
+    await autoSearch(query, res);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred during auto search processing' });

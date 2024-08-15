@@ -15,7 +15,11 @@ async function initialPass() {
     console.log("entered initial pass function");
     const INITIAL_INSTRUCTION = `
     Convert the user's input search query into keywords that is interpretable by Google.
-    Simply return the reformatted query without providing any additional detail so this can be directly inputted into Google.
+    Simply return the reformatted query so your output can be directly inputted into Google.
+
+    Here's an example:
+    User input: "research papers on information retrieval that use cross-encoder methods for re-ranking search results"
+    Output: "cross-encoder for re-ranking search results research information retrieval"
     `;
 
     const chatCompletion = await groq.chat.completions.create({
@@ -267,8 +271,44 @@ async function constructSpecificQuery(textChunk) {
 //return 5 highly relevant sources
 
 async function autoSearch(query) {
-    originalQuery = query;
 
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const sendUpdate = (event, data) => {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+        // Initial query generation
+        const firstQuery = await initialPass(query);
+        sendUpdate('firstQuery', { query: firstQuery });
+
+        // Fetch initial results
+        const results = await resultsRetrieval(firstQuery);
+        sendUpdate('initialResults', { results: results.slice(0, 10) });
+
+        // Rerank top results
+        const top_3_results = await rerankerEval(results);
+        sendUpdate('topResults', { results: top_3_results });
+
+        // Second iteration
+        const more_results = await secondIteration(top_3_results);
+        sendUpdate('finalResults', { results: more_results });
+
+        // Close the connection
+        res.write('event: close\ndata: done\n\n');
+        res.end();
+    } catch (error) {
+        console.error('Error in autoSearch:', error);
+        sendUpdate('error', { message: 'An error occurred during search' });
+        res.end();
+    }
+}
+/*
     firstQuery = await initialPass();
 
     results = await resultsRetrieval(firstQuery);
@@ -281,6 +321,6 @@ async function autoSearch(query) {
         searchPlan: "filler for now",
         firstQuery: firstQuery
     };
-}
+}*/
 
 module.exports = { autoSearch };
