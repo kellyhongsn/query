@@ -279,23 +279,18 @@ async function autoSearch(query, res) {
     };
 
     try {
-        // Initial query generation
         const firstQuery = await initialPass(query);
         sendUpdate('firstQuery', { query: firstQuery });
 
-        // Fetch initial results
         const results = await resultsRetrieval(firstQuery);
         sendUpdate('initialResults', { results: results.slice(0, 10) });
 
-        // Rerank top results
         const top_3_results = await rerankerEval(results);
         sendUpdate('topResults', { results: top_3_results });
 
-        // Second iteration
         const more_results = await secondIteration(top_3_results);
         sendUpdate('finalResults', { results: more_results });
-
-        // Close the connection
+        
         res.write('event: close\ndata: done\n\n');
         res.end();
     } catch (error) {
