@@ -194,17 +194,14 @@ async function secondIteration(rerankedResults) {
     function removeResults(resultsArray) {
         const uniqueIdentifiers = new Set();
         
-        // Flatten the 2D array and filter unique results
         const uniqueResults = resultsArray.flatMap(innerArray => {
-            // Check if innerArray.organic exists and is an array
             if (Array.isArray(innerArray.organic)) {
                 return innerArray.organic;
             } else if (Array.isArray(innerArray)) {
                 return innerArray;
             }
-            return []; // Return an empty array if neither condition is met
+            return []; 
         }).filter(item => {
-            // Ensure item is an object with title and link properties
             if (item && typeof item === 'object' && item.title && item.link) {
                 const identifier = `${item.title.toLowerCase()}|${item.link.toLowerCase()}`;
                 
