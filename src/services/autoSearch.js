@@ -212,7 +212,7 @@ async function secondIteration(rerankedResults) {
                     return true; 
                 }
             }
-            return false; // Filter out items without title or link
+            return false; 
         });
     
         return uniqueResults;
