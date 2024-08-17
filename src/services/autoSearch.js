@@ -111,7 +111,7 @@ function jsonToString(results) {
     if (results instanceof Set) {
         results = Array.from(results);
     }
-    
+
     return results.map(result => 
         `-
         "title": "${result.title}",
@@ -469,11 +469,7 @@ async function finalLLMEval() {
             }
         ],
         system: [
-            { type: "text", text: LLM_EVAL_INSTRUCTION },
-            { 
-                type: "text", 
-                text: FINAL_LLM_EVAL_INSTRUCTION
-            }
+            { type: "text", text: FINAL_LLM_EVAL_INSTRUCTION }
         ],
         messages: [
             { 
