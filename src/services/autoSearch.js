@@ -119,16 +119,46 @@ function jsonToString(results) {
 async function llmEval(organicResults) {
     const LLM_EVAL_INSTRUCTION = `
     You are an AI assistant specialized in evaluating search results for relevance and credibility.
-    Given a user's original query and search results, your task is to:
-    1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, and link credibility.
-    2. Identify the most relevant sources from the provided results.
-    3. Determine what additional information is still needed to fulfill the user's query.
-    
-    Provide your analysis in a structured format using the provided tools.
+    Your task is to analyze queries and search results, then provide structured evaluations to guide further research.
+    Use the provided tool to output your analysis. Be thorough and detailed in your evaluation.
     `;
 
-    // Format the organic results as specified
-    const SEARCH_RESULTS = jsonToString(organicResults);
+    const USER_PROMPT = `
+    Analyze the following query and search results, then provide a structured evaluation using the evaluate_search_results tool:
+
+    1. Query:
+    <query>
+    ${originalQuery}
+    </query>
+
+    2. Search Results:
+    <search_results>
+    ${jsonToString(organicResults)}
+    </search_results>
+
+    Follow these steps:
+    1. Analyze the query:
+    - Identify the main topic and key concepts
+    - Consider the level of depth or expertise required to answer the query adequately
+
+    2. Evaluate the search results for relevance and credibility
+    - Assess the relevance of each result to the query
+    - Consider the credibility of the sources (e.g., academic institutions, reputable news outlets, government websites, expert blogs)
+    - Look for indicators of accuracy and up-to-date information
+
+    3. Identify the 3-5 most relevant sources that best address the user's query
+    - Extract the positions of the most relevant sources
+
+    4. Determine what additional information is needed
+    - Identify any gaps in the information provided by the current search results
+    - Consider what follow-up questions or searches might be necessary to fully address the user's query
+
+    5. Provide additional queries to search on Google with that could fill the missing information
+    - List up to 2-3 additional queries that would be most helpful in addressing the gaps in the current search results
+    - These queries should be different enough from each other and from the initial search query to produce different results than the initial search
+
+    Provide your analysis using the evaluate_search_results tool. Be thorough and detailed in each section of your analysis.
+    `;
 
     const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
@@ -151,23 +181,24 @@ async function llmEval(organicResults) {
                         additionalInformationNeeded: {
                             type: "string",
                             description: "Description of what additional information is needed to fulfill the user's query"
+                        },
+                        additionalQueries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Additional queries to search on Google with that could fill the missing information"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources", "additionalInformationNeeded"]
+                    required: ["relevantPositions", "reasoningForChosenSources", "additionalInformationNeeded", "additionalQueries"]
                 }
             }
         ],
         system: [
-            { type: "text", text: LLM_EVAL_INSTRUCTION },
-            { 
-                type: "text", 
-                text: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`
-            }
+            { type: "text", text: LLM_EVAL_INSTRUCTION }
         ],
         messages: [
             { 
                 role: "user", 
-                content: "Analyze the search results and provide your evaluation."
+                content: USER_PROMPT
             }
         ],
         max_tokens: 1400
@@ -180,7 +211,7 @@ async function llmEval(organicResults) {
         throw new Error('No tool use response found');
     }
 
-    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded, additionalQueries
 
     return structuredResult;
 
@@ -529,6 +560,7 @@ async function autoSearch(query, res) {
 
         sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
         sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
+        sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
 
         // Filter relevant results and add them to the currentResults set
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
@@ -537,13 +569,8 @@ async function autoSearch(query, res) {
     
         relevantResults.forEach(result => currentResults.add(result));
 
-        const additionalInformationNeeded = structuredResult.additionalInformationNeeded;
-
-        const additionalQueries = await constructAdditionalQueries(additionalInformationNeeded);
-        sendUpdate('additionalQueries', { additionalQueries: additionalQueries }); // show additional queries
-
-        for (const query of additionalQueries) {
-            const { allResults, relevantResults } = await retrieveRerankUpdate(query, additionalInformationNeeded);
+        for (const query of structuredResult.additionalQueries) {
+            const { allResults, relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
             sendUpdate('additionalQuery', {additionalQuery: query}); // show current additional query
             sendUpdate('allResults', { allResults: allResults }); // show all results from additional query
             sendUpdate('relevantResults', { relevantResults: relevantResults }); // show relevant results from additional query
