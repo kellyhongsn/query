@@ -4,6 +4,7 @@ const { axios } = require('../utils/config');
 const { anthropic } = require('../utils/config');
 
 let originalQuery = '';
+let currentResults = new Set();
 
 const AUTO_SYSTEM_INSTRUCTION = `
 Given the user's search query, perform the following steps:
@@ -98,8 +99,19 @@ async function rerankerEval(organicResults) {
 
     } catch (error) {
         console.error('Error in reranking:', error);
-        return results;
+        return organicResults;
     }
+}
+
+function jsonToString(results) {
+    return results.map(result => 
+        `-
+        "title": "${result.title}",
+        "link": "${result.link}",
+        "snippet": "${result.snippet}",
+        "position": ${result.position}
+        -`
+    ).join('\n');
 }
 
 async function llmEval(organicResults) {
@@ -114,16 +126,9 @@ async function llmEval(organicResults) {
     `;
 
     // Format the organic results as specified
-    const SEARCH_RESULTS = organicResults.map(result => 
-        `-
-        "title": "${result.title}",
-        "link": "${result.link}",
-        "snippet": "${result.snippet}",
-        "position": ${result.position}
-        -`
-    ).join('\n');
+    const SEARCH_RESULTS = jsonToString(organicResults);
 
-    const response = await anthropic.beta.prompt_caching.messages.create({
+    const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
         tools: [
             {
@@ -154,8 +159,7 @@ async function llmEval(organicResults) {
             { type: "text", text: LLM_EVAL_INSTRUCTION },
             { 
                 type: "text", 
-                text: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`,
-                cache_control: { type: "ephemeral" }
+                text: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`
             }
         ],
         messages: [
@@ -173,7 +177,9 @@ async function llmEval(organicResults) {
         throw new Error('No tool use response found');
     }
 
-    return toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+
+    return structuredResult;
 
     /*
     const chatCompletion = await openai.chat.completions.create({
@@ -205,6 +211,69 @@ async function llmEval(organicResults) {
             }
         }
     });*/
+
+}
+
+async function secondLlmEval(results, missingInformation) {
+    const SECOND_LLM_EVAL_INSTRUCTION = `
+    You are an AI assistant specialized in evaluating search results for relevance and credibility.
+
+    You will be given the second iteration of results, and the missing information that these new results are seeking to fulfill.
+
+    Given a user's original query, new search results, missing information we want to fill, your task is to:
+    1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, link credibility, and what missing information we want to fill with these sources.
+    2. Identify the most relevant sources from the provided results.
+    
+    Provide your analysis in a structured format using the provided tools.
+    `;
+
+    // Format the organic results as specified
+    const SEARCH_RESULTS = jsonToString(results);
+
+    const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        tools: [
+            {
+                name: "evaluate_search_results",
+                description: "Evaluate search results and provide structured output",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        relevantPositions: {
+                            type: "array",
+                            items: { type: "integer" },
+                            description: "Array of positions corresponding to highly relevant and credible sources"
+                        },
+                        reasoningForChosenSources: {
+                            type: "string",
+                            description: "Explanation for why the chosen sources are considered relevant and credible"
+                        }
+                    },
+                    required: ["relevantPositions", "reasoningForChosenSources"]
+                }
+            }
+        ],
+        system: [
+            { type: "text", text: SECOND_LLM_EVAL_INSTRUCTION }
+        ],
+        messages: [
+            { 
+                role: "user", 
+                content: `Original Query: ${originalQuery}\n\nMissing Information: ${missingInformation}\n\nSearch Results:\n${SEARCH_RESULTS}`
+            }
+        ]
+    });
+
+    // Extract the tool use response
+    const toolUseResponse = response.content.find(content => content.type === 'tool_use');
+
+    if (!toolUseResponse) {
+        throw new Error('No tool use response found');
+    }
+
+    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+
+    return structuredResult;
 
 }
 
@@ -316,7 +385,111 @@ async function constructSpecificQuery(textChunk) {
 
 //if inital results are not relevant, then split up query into smaller parts
 
-//return 5 highly relevant sources
+//based on our original prompt and what we're still missing, construct additional simple queries to fill those parts. considers current results, additional information needed, and the original query
+
+async function constructAdditionalQueries(additionalInformationNeeded) {
+    const ADDITIONAL_QUERY_INSTRUCTION = `
+    Given the user's original query, additional information needed, and current results, construct additional simple queries to search with that could fill those parts.
+    Give a maximum of 3 queries that would produce different results than the initial search and each other.
+    `;
+
+    const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        tools: [
+            {
+                name: "additional_queries",
+                description: "Construct additional queries to search in order to fulfill the user's query, considering the current results and additional information needed.",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        queries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of queries that would produce different results than the initial search and each other"
+                        }
+                    },
+                    required: ["queries"]
+                }
+            }
+        ],
+        system: [
+            { type: "text", text: ADDITIONAL_QUERY_INSTRUCTION }
+        ],
+        messages: [
+            { 
+                role: "user", 
+                content: `Original Query: ${originalQuery}\n\nAdditional Information Needed: ${additionalInformationNeeded}\n\nCurrent Results:\n${jsonToString(currentResults)}`
+            }
+        ]
+    });
+
+    return response.content.find(content => content.type === 'tool_use').input.queries;
+
+}
+
+async function finalLLMEval() {
+    const FINAL_LLM_EVAL_INSTRUCTION = `
+    You are an AI assistant specialized in evaluating search results for relevance and credibility.
+    Given a user's original query and search results, your task is to:
+    1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, and link credibility.
+    2. Identify the most relevant sources from the provided results.
+    `;
+
+    const SEARCH_RESULTS = jsonToString(currentResults);
+
+    const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        tools: [
+            {
+                name: "evaluate_search_results",
+                description: "Evaluate search results and provide structured output",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        relevantPositions: {
+                            type: "array",
+                            items: { type: "integer" },
+                            description: "Array of positions corresponding to highly relevant and credible sources"
+                        }
+                    },
+                    required: ["relevantPositions"]
+                }
+            }
+        ],
+        system: [
+            { type: "text", text: LLM_EVAL_INSTRUCTION },
+            { 
+                type: "text", 
+                text: FINAL_LLM_EVAL_INSTRUCTION
+            }
+        ],
+        messages: [
+            { 
+                role: "user", 
+                content: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`
+            }
+        ]
+    });
+
+    // Extract the tool use response
+    const toolUseResponse = response.content.find(content => content.type === 'tool_use');
+
+    if (!toolUseResponse) {
+        throw new Error('No tool use response found');
+    }
+
+    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+
+    return currentResults.filter(result => structuredResult.relevantPositions.includes(result.position));
+
+}
+
+async function retrieveRerankUpdate(query, additionalInformationNeeded) {
+    const results = await resultsRetrieval(query);
+    const structuredResult = await secondLlmEval(results, additionalInformationNeeded);
+    results.filter(result => structuredResult.relevantPositions.includes(result.position))
+           .forEach(result => currentResults.add(result));
+}
 
 async function autoSearch(query, res) {
     
@@ -339,14 +512,29 @@ async function autoSearch(query, res) {
         const results = await resultsRetrieval(firstQuery);
         sendUpdate('initialResults', { initialResults: results });
 
-        const top_3_results = await rerankerEval(results);
-        sendUpdate('topResults', { topResults: top_3_results });
+        const structuredResult = await llmEval(results); // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
 
+        // Filter relevant results and add them to the currentResults set
+        results.filter(result => structuredResult.relevantPositions.includes(result.position))
+               .forEach(result => currentResults.add(result));
+
+        const additionalInformationNeeded = structuredResult.additionalInformationNeeded;
+
+        const additionalQueries = await constructAdditionalQueries(additionalInformationNeeded);
+
+        await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
+
+        const finalResults = await finalLLMEval();
+        sendUpdate('finalResults', { finalResults: finalResults });
+
+        res.end();
+
+        /*
         const more_results = await secondIteration(top_3_results);
         sendUpdate('finalResults', { finalResults: more_results });
 
         res.write('event: close\ndata: done\n\n');
-        res.end();
+        res.end();*/
     } catch (error) {
         console.error('Error in autoSearch:', error);
         sendUpdate('error', { message: 'An error occurred during search' });
@@ -366,6 +554,6 @@ async function autoSearch(query, res) {
         searchPlan: "filler for now",
         firstQuery: firstQuery
     };
-}*/
+*/
 
 module.exports = { autoSearch };
