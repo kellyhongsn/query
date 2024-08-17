@@ -107,6 +107,10 @@ function jsonToString(results) {
     console.log("entered json to string function");
     console.log(results);
     console.log(typeof results);
+
+    if (results instanceof Set) {
+        results = Array.from(results);
+    }
     
     return results.map(result => 
         `-
