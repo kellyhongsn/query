@@ -6,12 +6,6 @@ const { anthropic } = require('../utils/config');
 let originalQuery = '';
 let currentResults = new Set();
 
-const AUTO_SYSTEM_INSTRUCTION = `
-Given the user's search query, perform the following steps:
-1) Create a plan for the best way to search this
-2) Construct the first search query to start with
-`;
-
 //simplify request down to keywords (llama), add site: operators
 async function initialPass() {
     console.log("entered initial pass function");
@@ -503,6 +497,11 @@ async function retrieveRerankUpdate(query, additionalInformationNeeded) {
     const structuredResult = await secondLlmEval(results, additionalInformationNeeded);
     results.filter(result => structuredResult.relevantPositions.includes(result.position))
            .forEach(result => currentResults.add(result));
+    
+    return {
+        allResults: results,
+        relevantResults: results.filter(result => structuredResult.relevantPositions.includes(result.position))
+    };
 }
 
 async function autoSearch(query, res) {
@@ -521,27 +520,43 @@ async function autoSearch(query, res) {
 
     try {
         const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-        sendUpdate('firstQuery', { query: firstQuery });
+        sendUpdate('firstQuery', { query: firstQuery }); // show first query
 
         const results = await resultsRetrieval(firstQuery);
-        sendUpdate('initialResults', { initialResults: results });
+        sendUpdate('initialResults', { initialResults: results }); // show initial results from first query
 
         const structuredResult = await llmEval(results); // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
 
+        sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
+        sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
+
         // Filter relevant results and add them to the currentResults set
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
-        sendUpdate('topResults', { topResults: relevantResults });
+        sendUpdate('topResults', { topResults: relevantResults }); // show relevant results from first query
 
+    
         relevantResults.forEach(result => currentResults.add(result));
 
         const additionalInformationNeeded = structuredResult.additionalInformationNeeded;
 
         const additionalQueries = await constructAdditionalQueries(additionalInformationNeeded);
+        sendUpdate('additionalQueries', { additionalQueries: additionalQueries }); // show additional queries
 
-        await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
+        for (const query of additionalQueries) {
+            const { allResults, relevantResults } = await retrieveRerankUpdate(query, additionalInformationNeeded);
+            sendUpdate('additionalQuery', {additionalQuery: query}); // show current additional query
+            sendUpdate('allResults', { allResults: allResults }); // show all results from additional query
+            sendUpdate('relevantResults', { relevantResults: relevantResults }); // show relevant results from additional query
+        }
+
+        //await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
 
         const finalResults = await finalLLMEval();
-        sendUpdate('finalResults', { finalResults: finalResults });
+        sendUpdate('finalResults', { finalResults: finalResults }); // show final results
+
+        // Clear currentResults for future searches
+        currentResults.clear();
+        console.log("Cleared currentResults for future searches");
 
         res.end();
 
