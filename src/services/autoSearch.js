@@ -216,6 +216,7 @@ async function llmEval(organicResults) {
 }
 
 async function secondLlmEval(results, missingInformation) {
+    console.log("entered second llm eval function");
     const SECOND_LLM_EVAL_INSTRUCTION = `
     You are an AI assistant specialized in evaluating search results for relevance and credibility.
 
@@ -489,7 +490,10 @@ async function finalLLMEval() {
 }
 
 async function retrieveRerankUpdate(query, additionalInformationNeeded) {
+    console.log("entered retrieve rerank update function");
     const results = await resultsRetrieval(query);
+    console.log(results);
+    console.log(typeof results);
     const structuredResult = await secondLlmEval(results, additionalInformationNeeded);
     results.filter(result => structuredResult.relevantPositions.includes(result.position))
            .forEach(result => currentResults.add(result));
