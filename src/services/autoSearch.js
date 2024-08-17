@@ -488,8 +488,10 @@ async function finalLLMEval() {
     }
 
     const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+    
+    const currentResultsArray = Array.from(currentResults);
 
-    return currentResults.filter(result => structuredResult.relevantPositions.includes(result.position));
+    return currentResultsArray.filter(result => structuredResult.relevantPositions.includes(result.position));
 
 }
 
