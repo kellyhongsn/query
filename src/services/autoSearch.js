@@ -1,6 +1,7 @@
 const { openai } = require('../utils/config');
 const { groq } = require('../utils/config');
 const { axios } = require('../utils/config');
+const { anthropic } = require('../utils/config');
 
 let originalQuery = '';
 
@@ -101,16 +102,19 @@ async function rerankerEval(organicResults) {
     }
 }
 
-//llm eval, are there at least 2 highly relevant sources?
 async function llmEval(organicResults) {
     const LLM_EVAL_INSTRUCTION = `
-    Given these search results, determine whether there are highly relevant sources that a human would click on.
-    Consider the content of the results (title and snippet), as well as the source credibility.
-    Think through this in steps, then provide a structured output indicating whether highly relevant and credible sources exist, and if so, their positions.
+    You are an AI assistant specialized in evaluating search results for relevance and credibility.
+    Given a user's original query and search results, your task is to:
+    1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, and link credibility.
+    2. Identify the most relevant sources from the provided results.
+    3. Determine what additional information is still needed to fulfill the user's query.
+    
+    Provide your analysis in a structured format using the provided tools.
     `;
 
     // Format the organic results as specified
-    const MESSAGE_INPUT = organicResults.map(result => 
+    const SEARCH_RESULTS = organicResults.map(result => 
         `-
         "title": "${result.title}",
         "link": "${result.link}",
@@ -119,6 +123,59 @@ async function llmEval(organicResults) {
         -`
     ).join('\n');
 
+    const response = await anthropic.beta.prompt_caching.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        tools: [
+            {
+                name: "evaluate_search_results",
+                description: "Evaluate search results and provide structured output",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        relevantPositions: {
+                            type: "array",
+                            items: { type: "integer" },
+                            description: "Array of positions corresponding to highly relevant and credible sources"
+                        },
+                        reasoningForChosenSources: {
+                            type: "string",
+                            description: "Explanation for why the chosen sources are considered relevant and credible"
+                        },
+                        additionalInformationNeeded: {
+                            type: "string",
+                            description: "Description of what additional information is needed to fulfill the user's query"
+                        }
+                    },
+                    required: ["relevantPositions", "reasoningForChosenSources", "additionalInformationNeeded"]
+                }
+            }
+        ],
+        system: [
+            { type: "text", text: LLM_EVAL_INSTRUCTION },
+            { 
+                type: "text", 
+                text: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`,
+                cache_control: { type: "ephemeral" }
+            }
+        ],
+        messages: [
+            { 
+                role: "user", 
+                content: "Analyze the search results and provide your evaluation."
+            }
+        ]
+    });
+
+    // Extract the tool use response
+    const toolUseResponse = response.content.find(content => content.type === 'tool_use');
+
+    if (!toolUseResponse) {
+        throw new Error('No tool use response found');
+    }
+
+    return toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+
+    /*
     const chatCompletion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -147,15 +204,7 @@ async function llmEval(organicResults) {
                 required: ["relevantSourcesExist", "relevantPositions"]
             }
         }
-    });
-
-    const result = JSON.parse(chatCompletion.choices[0].message.content);
-
-    if (!result.relevantSourcesExist) {
-        //split up query and repeat process
-    }
-
-    return result;
+    });*/
 
 }
 
@@ -284,7 +333,7 @@ async function autoSearch(query, res) {
     };
 
     try {
-        const firstQuery = await initialPass(query);
+        const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
         sendUpdate('firstQuery', { query: firstQuery });
 
         const results = await resultsRetrieval(firstQuery);
