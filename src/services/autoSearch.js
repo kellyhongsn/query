@@ -167,7 +167,8 @@ async function llmEval(organicResults) {
                 role: "user", 
                 content: "Analyze the search results and provide your evaluation."
             }
-        ]
+        ],
+        max_tokens: 1400
     });
 
     // Extract the tool use response
@@ -261,7 +262,8 @@ async function secondLlmEval(results, missingInformation) {
                 role: "user", 
                 content: `Original Query: ${originalQuery}\n\nMissing Information: ${missingInformation}\n\nSearch Results:\n${SEARCH_RESULTS}`
             }
-        ]
+        ],
+        max_tokens: 1400
     });
 
     // Extract the tool use response
@@ -420,7 +422,8 @@ async function constructAdditionalQueries(additionalInformationNeeded) {
                 role: "user", 
                 content: `Original Query: ${originalQuery}\n\nAdditional Information Needed: ${additionalInformationNeeded}\n\nCurrent Results:\n${jsonToString(currentResults)}`
             }
-        ]
+        ],
+        max_tokens: 500
     });
 
     return response.content.find(content => content.type === 'tool_use').input.queries;
@@ -468,7 +471,8 @@ async function finalLLMEval() {
                 role: "user", 
                 content: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`
             }
-        ]
+        ],
+        max_tokens: 1400
     });
 
     // Extract the tool use response
@@ -515,8 +519,10 @@ async function autoSearch(query, res) {
         const structuredResult = await llmEval(results); // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
 
         // Filter relevant results and add them to the currentResults set
-        results.filter(result => structuredResult.relevantPositions.includes(result.position))
-               .forEach(result => currentResults.add(result));
+        const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
+        sendUpdate('topResults', { topResults: relevantResults });
+
+        relevantResults.forEach(result => currentResults.add(result));
 
         const additionalInformationNeeded = structuredResult.additionalInformationNeeded;
 
