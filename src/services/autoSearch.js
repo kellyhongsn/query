@@ -104,6 +104,10 @@ async function rerankerEval(organicResults) {
 }
 
 function jsonToString(results) {
+    console.log("entered json to string function");
+    console.log(results);
+    console.log(typeof results);
+    
     return results.map(result => 
         `-
         "title": "${result.title}",
