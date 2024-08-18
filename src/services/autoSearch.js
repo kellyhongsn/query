@@ -567,7 +567,11 @@ async function finalLLMEval() {
     
     const currentResultsArray = Array.from(currentResults);
 
-    return currentResultsArray.filter(result => structuredResult.relevantPositions.includes(result.position));
+    const finalResults = currentResultsArray.filter(result => structuredResult.relevantPositions.includes(result.position));
+
+    console.log(finalResults);
+
+    return finalResults;
 
 }
 
