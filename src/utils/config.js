@@ -20,7 +20,10 @@ const pool = new Pool({
 });
 
 const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    defaultHeaders: {
+      'anthropic-beta': 'prompt-caching-2024-07-31'
+    }
 });
 
 module.exports = { openai, groq, axios, pool, anthropic };
