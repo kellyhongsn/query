@@ -293,7 +293,7 @@ async function secondLlmEval(results, missingInformation) {
     // Format the organic results as specified
     const SEARCH_RESULTS = jsonToString(results);
 
-    const response = await anthropic.beta.prompt_caching.messages.create({
+    const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
         tools: [
             {
@@ -312,8 +312,7 @@ async function secondLlmEval(results, missingInformation) {
                             description: "Explanation for why the chosen sources are considered relevant and credible"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources"],
-                    cache_control: {"type": "ephemeral"}
+                    required: ["relevantPositions", "reasoningForChosenSources"]
                 }
             }
         ],
@@ -324,8 +323,7 @@ async function secondLlmEval(results, missingInformation) {
             },
             {
                 type: "text",
-                text: INFO_INSTRUCTION,
-                cache_control: {"type": "ephemeral"}
+                text: INFO_INSTRUCTION
             }
         ],
         messages: [
