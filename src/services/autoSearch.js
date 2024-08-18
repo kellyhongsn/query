@@ -251,25 +251,53 @@ async function llmEval(organicResults) {
 async function secondLlmEval(results, missingInformation) {
     console.log("entered second llm eval function");
     const SECOND_LLM_EVAL_INSTRUCTION = `
-    You are an AI assistant specialized in evaluating search results for relevance and credibility.
-
-    You will be given the second iteration of results, and the missing information that these new results are seeking to fulfill.
+    You are an AI assistant specialized in evaluating search results for relevance and credibility, with the aim to best fulfill the user's query.
+    Use the provided tool to output your analysis. Be thorough and detailed in your evaluation.
 
     Given a user's original query, new search results, missing information we want to fill, your task is to:
     1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, link credibility, and what missing information we want to fill with these sources.
     2. Identify the most relevant sources from the provided results.
     
     Provide your analysis in a structured format using the provided tools.
+    `;//helpful to cache this?
+
+    const INFO_INSTRUCTION = `
+    Your task is to consider the user's original query, the current results we have collected so far, and which information we want to fulfill in order to evaluate a new set of search results.
+
+    We have done one search so far, now you will be give a second iteration of results which are the search results of queries designd to fulfill the parts we are missing.
+
+    You are optimizing to fulfill this original query from the user: ${originalQuery}
+
+    We currently have: ${jsonToString(currentResults)}
+
+    And we are missing: ${missingInformation}
+
+    Follow these steps:
+    1. Analyze the original query, current results, and missing information:
+    - Identify the main topic and key concepts
+    - Consider the level of depth or expertise required to answer the query adequately
+    - Determine what kind of results would best fulfill the user's query, specifically targeting missing information
+
+    2. Evaluate the new results for relevancy and credibility
+    - Assess the relevance of each result to the query
+    - Consider the credibility of the sources (e.g., academic institutions, reputable news outlets, government websites, expert blogs)
+    - Look for indicators of accuracy and up-to-date information
+
+    3. Identify the 3-5 most relevant sources that best address the user's query and satisfies parts of the missing information
+    - Extract the positions of the most relevant sources
+    - Provide your reasoning for why you chose these sources
+
+    Provide your analysis using the evaluate_second_results tool. Be thorough and detailed in each section of your analysis.
     `;
 
     // Format the organic results as specified
     const SEARCH_RESULTS = jsonToString(results);
 
-    const response = await anthropic.messages.create({
+    const response = await anthropic.beta.prompt_caching.messages.create({
         model: "claude-3-5-sonnet-20240620",
         tools: [
             {
-                name: "evaluate_search_results",
+                name: "evaluate_second_results",
                 description: "Evaluate search results and provide structured output",
                 input_schema: {
                     type: "object",
@@ -284,17 +312,26 @@ async function secondLlmEval(results, missingInformation) {
                             description: "Explanation for why the chosen sources are considered relevant and credible"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources"]
+                    required: ["relevantPositions", "reasoningForChosenSources"],
+                    cache_control: {"type": "ephemeral"}
                 }
             }
         ],
         system: [
-            { type: "text", text: SECOND_LLM_EVAL_INSTRUCTION }
+            { 
+                type: "text", 
+                text: SECOND_LLM_EVAL_INSTRUCTION 
+            },
+            {
+                type: "text",
+                text: INFO_INSTRUCTION,
+                cache_control: {"type": "ephemeral"}
+            }
         ],
         messages: [
             { 
                 role: "user", 
-                content: `Original Query: ${originalQuery}\n\nMissing Information: ${missingInformation}\n\nSearch Results:\n${SEARCH_RESULTS}`
+                content: `Here are the new search results to evaluate:\n${SEARCH_RESULTS}`
             }
         ],
         max_tokens: 1400
@@ -307,7 +344,7 @@ async function secondLlmEval(results, missingInformation) {
         throw new Error('No tool use response found');
     }
 
-    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
+    const structuredResult = toolUseResponse.input; // JSON object of relevantPositions, reasoningForChosenSources
 
     return structuredResult;
 
@@ -466,19 +503,35 @@ async function constructAdditionalQueries(additionalInformationNeeded) {
 
 async function finalLLMEval() {
     const FINAL_LLM_EVAL_INSTRUCTION = `
-    You are an AI assistant specialized in evaluating search results for relevance and credibility.
-    Given a user's original query and search results, your task is to:
-    1. Determine what kind of sources would be most relevant, considering relevancy, accuracy, and link credibility.
-    2. Identify the most relevant sources from the provided results.
+    You are an AI assistant tasked with evaluating search results for relevance, accuracy, and credibility, mimicking how a human would select sources based on their search intent. 
+    Your goal is to identify the most relevant search results that a user would likely click on.
     `;
 
-    const SEARCH_RESULTS = jsonToString(currentResults);
+    const USER_PROMPT = `
+    Here is the user's original query: ${originalQuery}
+
+    Here is the set of results to evaluate: ${jsonToString(currentResults)}
+
+    Your task is to:
+    1. Analyze the search query to understand the user's intent.
+    2. Evaluate each search result for:
+        a) Relevance to the search query
+        b) Accuracy of information (based on your knowledge and the source's reputation)
+        c) Credibility of the link (consider domain authority, source type, etc.)
+    3. Consider which results a human user would be most likely to click on, given their probable intent.
+        - get at least 10 results, and the position numbers that correspond to each
+    4. Rank the most relevant results (their corresponding position numbers) in order of relevance.
+
+    Remember, your goal is to mimic human behavior in selecting search results.
+
+    Provide your analysis using the evaluate_final_results tool. Be thorough and thoughtful, thinking from the perspective of the user.
+    `;
 
     const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
         tools: [
             {
-                name: "evaluate_search_results",
+                name: "evaluate_final_results",
                 description: "Evaluate search results and provide structured output",
                 input_schema: {
                     type: "object",
@@ -499,7 +552,7 @@ async function finalLLMEval() {
         messages: [
             { 
                 role: "user", 
-                content: `Original Query: ${originalQuery}\n\nSearch Results:\n${SEARCH_RESULTS}`
+                content: USER_PROMPT
             }
         ],
         max_tokens: 1400
@@ -550,36 +603,36 @@ async function autoSearch(query, res) {
     };
 
     try {
+        // performing first search and evaluating results
         const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-        sendUpdate('firstQuery', { query: firstQuery }); // show first query
+        sendUpdate('firstQuery', { query: firstQuery });
 
         const results = await resultsRetrieval(firstQuery);
-        sendUpdate('initialResults', { initialResults: results }); // show initial results from first query
+        sendUpdate('initialResults', { initialResults: results });
 
-        const structuredResult = await llmEval(results); // JSON object of relevantPositions, reasoningForChosenSources, additionalInformationNeeded
-
+        const structuredResult = await llmEval(results);
         sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
         sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
         sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
 
-        // Filter relevant results and add them to the currentResults set
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
-        sendUpdate('topResults', { topResults: relevantResults }); // show relevant results from first query
+        sendUpdate('topResults', { topResults: relevantResults });
 
-    
         relevantResults.forEach(result => currentResults.add(result));
 
+        // performing second iteration of searches, evaluating those, then updating currentResults
         for (const query of structuredResult.additionalQueries) {
             const { allResults, relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
-            sendUpdate('additionalQuery', {additionalQuery: query}); // show current additional query
-            sendUpdate('allResults', { allResults: allResults }); // show all results from additional query
-            sendUpdate('relevantResults', { relevantResults: relevantResults }); // show relevant results from additional query
+            sendUpdate('additionalQuery', {additionalQuery: query});
+            sendUpdate('allResults', { allResults: allResults });
+            sendUpdate('relevantResults', { relevantResults: relevantResults });
         }
 
         //await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
 
+        // final evaluation and sources to present to user
         const finalResults = await finalLLMEval();
-        sendUpdate('finalResults', { finalResults: finalResults }); // show final results
+        sendUpdate('finalResults', { finalResults: finalResults });
 
         // Clear currentResults for future searches
         currentResults.clear();
