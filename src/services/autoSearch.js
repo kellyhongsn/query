@@ -606,6 +606,8 @@ async function autoSearch(query, res) {
         currentResults.clear();
         console.log("Cleared currentResults for future searches")
 
+        sendUpdate('done', { done: true });
+
         res.end();
 
     } catch (error) {
