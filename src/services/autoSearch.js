@@ -619,6 +619,7 @@ async function autoSearch(query, res) {
         const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
         sendUpdate('firstQuery', { query: firstQuery });
 
+        /*
         const results = await resultsRetrieval(firstQuery);
         sendUpdate('initialResults', { initialResults: results });
 
@@ -648,7 +649,7 @@ async function autoSearch(query, res) {
 
         // Clear currentResults for future searches
         currentResults.clear();
-        console.log("Cleared currentResults for future searches");
+        console.log("Cleared currentResults for future searches");*/
 
         res.end();
 
