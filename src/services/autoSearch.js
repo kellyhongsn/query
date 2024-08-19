@@ -336,9 +336,10 @@ async function secondLlmEval(results, missingInformation) {
                 content: `Here are the new search results to evaluate:\n${SEARCH_RESULTS}`
             }
         ],
-        max_tokens: 1400,
-        extra_headers: {"anthropic-beta": "prompt-caching-2024-07-31"}
-    });
+        max_tokens: 1400
+        },
+        { headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } }
+    );
 
     const end_time = performance.now();
 
