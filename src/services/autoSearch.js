@@ -293,6 +293,8 @@ async function secondLlmEval(results, missingInformation) {
     // Format the organic results as specified
     const SEARCH_RESULTS = jsonToString(results);
 
+    const start_time = performance.now();
+
     const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
         tools: [
@@ -332,8 +334,13 @@ async function secondLlmEval(results, missingInformation) {
                 content: `Here are the new search results to evaluate:\n${SEARCH_RESULTS}`
             }
         ],
-        max_tokens: 1400
+        max_tokens: 1400,
+        extra_headers: {"anthropic-beta": "prompt-caching-2024-07-31"}
     });
+
+    const end_time = performance.now();
+
+    console.log(`Time taken: ${(end_time - start_time) / 1000} seconds`);
 
     // Extract the tool use response
     const toolUseResponse = response.content.find(content => content.type === 'tool_use');
