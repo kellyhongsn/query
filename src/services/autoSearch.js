@@ -6,38 +6,6 @@ const { anthropic } = require('../utils/config');
 let originalQuery = '';
 let currentResults = new Set();
 
-//simplify request down to keywords (llama), add site: operators
-async function initialPass() {
-    console.log("entered initial pass function");
-    /*
-    const INITIAL_INSTRUCTION = `
-    You are a helpful assistant that can help the user find information on a topic.
-    You will be given a query in natural language, and you will return a search query that is a simplified version that captures keywords.
-    `;
-
-    const INPUT = `
-    Here is the user's query: ${originalQuery}
-    Simplified version:
-    `;
-
-    const chatCompletion = await groq.chat.completions.create({
-        model: "llama3-8b-8192",
-        messages: [
-          { role: "system", content: INITIAL_INSTRUCTION },
-          { role: "user", content: INPUT }
-        ],
-        temperature: 0.2,
-        max_tokens: 200,
-    });
-    let content = chatCompletion.choices[0].message.content.replace(/['"]/g, '');
-*/
-    const finalResult = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-
-    console.log(finalResult);
-
-    return finalResult;
-}
-
 //retrieve top 10 results
 async function resultsRetrieval(searchQuery) {
     console.log("entered results retrieval");
@@ -149,11 +117,9 @@ async function llmEval(organicResults) {
     3. Identify the 3-5 most relevant sources that best address the user's query
     - Extract the positions of the most relevant sources
 
-    4. Determine what additional information is needed
+    4. Determine what additional information is needed, and provide additional queries to search on Google with that could fill the missing information
     - Identify any gaps in the information provided by the current search results
     - Consider what follow-up questions or searches might be necessary to fully address the user's query
-
-    5. Provide additional queries to search on Google with that could fill the missing information
     - List up to 2-3 additional queries that would be most helpful in addressing the gaps in the current search results
     - These queries should be designed for research papers specifically, so something along the lines of "research papers on _" or "findings on _"
     - These queries should be different enough from each other and from the initial search query to produce different results than the initial search
@@ -175,17 +141,13 @@ async function llmEval(organicResults) {
                             items: { type: "integer" },
                             description: "Array of positions corresponding to highly relevant and credible sources"
                         },
-                        additionalInformationNeeded: {
-                            type: "string",
-                            description: "Description of what additional information is needed to fulfill the user's query"
-                        },
                         additionalQueries: {
                             type: "array",
                             items: { type: "string" },
                             description: "Additional queries to search on Google with that could fill the missing information"
                         }
                     },
-                    required: ["relevantPositions", "additionalInformationNeeded", "additionalQueries"]
+                    required: ["relevantPositions", "additionalQueries"]
                 }
             }
         ],
@@ -275,16 +237,13 @@ async function secondLlmEval(results, missingInformation) {
     - Consider the level of depth or expertise required to answer the query adequately
     - Determine what kind of results would best fulfill the user's query, specifically targeting missing information
 
-    2. Evaluate the new results for relevancy and credibility
+    2. Identify the 3-5 most relevant sources that best address the user's query and satisfies parts of the missing information
     - Assess the relevance of each result to the query
     - Consider the credibility of the sources (e.g., academic institutions, reputable news outlets, government websites, expert blogs)
     - Look for indicators of accuracy and up-to-date information
-
-    3. Identify the 3-5 most relevant sources that best address the user's query and satisfies parts of the missing information
     - Extract the positions of the most relevant sources
-    - Provide your reasoning for why you chose these sources
 
-    Provide your analysis using the evaluate_second_results tool. Be thorough and detailed in each section of your analysis.
+    Provide your analysis using the evaluate_second_results tool.
     `;
 
     // Format the organic results as specified
@@ -305,13 +264,9 @@ async function secondLlmEval(results, missingInformation) {
                             type: "array",
                             items: { type: "integer" },
                             description: "Array of positions corresponding to highly relevant and credible sources"
-                        },
-                        reasoningForChosenSources: {
-                            type: "string",
-                            description: "Explanation for why the chosen sources are considered relevant and credible"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources"],
+                    required: ["relevantPositions"],
                     cache_control: {"type": "ephemeral"}
                 }
             }
@@ -538,17 +493,22 @@ async function finalLLMEval() {
 
 }
 
+function addUniqueResults(results) {
+    results.forEach(result => {
+        const identifier = `${result.title.toLowerCase()}|${result.link.toLowerCase()}`;
+        currentResults.add(identifier);
+    });
+}
+
 async function retrieveRerankUpdate(query, additionalInformationNeeded) {
     console.log("entered retrieve rerank update function");
     const results = await resultsRetrieval(query);
     console.log(results);
     console.log(typeof results);
     const structuredResult = await secondLlmEval(results, additionalInformationNeeded);
-    results.filter(result => structuredResult.relevantPositions.includes(result.position))
-           .forEach(result => currentResults.add(result));
+    addUniqueResults(results.filter(result => structuredResult.relevantPositions.includes(result.position)));
     
     return {
-        allResults: results,
         relevantResults: results.filter(result => structuredResult.relevantPositions.includes(result.position))
     };
 }
@@ -577,7 +537,7 @@ async function autoSearch(query, res) {
         sendUpdate('initialResults', { initialResults: results });
 
         const structuredResult = await llmEval(results);
-        sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
+        //sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
         //sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
         sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
 
@@ -590,7 +550,7 @@ async function autoSearch(query, res) {
         // performing second iteration of searches, evaluating those, then updating currentResults
         for (query of structuredResult.additionalQueries) {
             query = query + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-            const { allResults, relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
+            const { relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
             //sendUpdate('additionalQuery', {additionalQuery: query});
             //sendUpdate('allResults', { allResults: allResults });
             sendUpdate('relevantResults', { relevantResults: relevantResults });
