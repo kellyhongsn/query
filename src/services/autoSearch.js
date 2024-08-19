@@ -314,7 +314,8 @@ async function secondLlmEval(results, missingInformation) {
                             description: "Explanation for why the chosen sources are considered relevant and credible"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources"]
+                    required: ["relevantPositions", "reasoningForChosenSources"],
+                    cache_control: {"type": "ephemeral"}
                 }
             }
         ],
@@ -325,7 +326,8 @@ async function secondLlmEval(results, missingInformation) {
             },
             {
                 type: "text",
-                text: INFO_INSTRUCTION
+                text: INFO_INSTRUCTION,
+                cache_control: {"type": "ephemeral"}
             }
         ],
         messages: [
