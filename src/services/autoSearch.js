@@ -155,6 +155,7 @@ async function llmEval(organicResults) {
 
     5. Provide additional queries to search on Google with that could fill the missing information
     - List up to 2-3 additional queries that would be most helpful in addressing the gaps in the current search results
+    - These queries should be designed for research papers specifically, so something along the lines of "research papers on _" or "findings on _"
     - These queries should be different enough from each other and from the initial search query to produce different results than the initial search
 
     Provide your analysis using the evaluate_search_results tool. Be thorough and detailed in each section of your analysis.
@@ -174,10 +175,6 @@ async function llmEval(organicResults) {
                             items: { type: "integer" },
                             description: "Array of positions corresponding to highly relevant and credible sources"
                         },
-                        reasoningForChosenSources: {
-                            type: "string",
-                            description: "Explanation for why the chosen sources are considered relevant and credible"
-                        },
                         additionalInformationNeeded: {
                             type: "string",
                             description: "Description of what additional information is needed to fulfill the user's query"
@@ -188,7 +185,7 @@ async function llmEval(organicResults) {
                             description: "Additional queries to search on Google with that could fill the missing information"
                         }
                     },
-                    required: ["relevantPositions", "reasoningForChosenSources", "additionalInformationNeeded", "additionalQueries"]
+                    required: ["relevantPositions", "additionalInformationNeeded", "additionalQueries"]
                 }
             }
         ],
@@ -464,50 +461,6 @@ async function constructSpecificQuery(textChunk) {
     return specificQuery;
 }
 
-//if inital results are not relevant, then split up query into smaller parts
-
-//based on our original prompt and what we're still missing, construct additional simple queries to fill those parts. considers current results, additional information needed, and the original query
-
-async function constructAdditionalQueries(additionalInformationNeeded) {
-    const ADDITIONAL_QUERY_INSTRUCTION = `
-    Given the user's original query, additional information needed, and current results, construct additional simple queries to search with that could fill those parts.
-    Give a maximum of 3 queries that would produce different results than the initial search and each other.
-    `;
-
-    const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20240620",
-        tools: [
-            {
-                name: "additional_queries",
-                description: "Construct additional queries to search in order to fulfill the user's query, considering the current results and additional information needed.",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        queries: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Array of queries that would produce different results than the initial search and each other"
-                        }
-                    },
-                    required: ["queries"]
-                }
-            }
-        ],
-        system: [
-            { type: "text", text: ADDITIONAL_QUERY_INSTRUCTION }
-        ],
-        messages: [
-            { 
-                role: "user", 
-                content: `Original Query: ${originalQuery}\n\nAdditional Information Needed: ${additionalInformationNeeded}\n\nCurrent Results:\n${jsonToString(currentResults)}`
-            }
-        ],
-        max_tokens: 500
-    });
-
-    return response.content.find(content => content.type === 'tool_use').input.queries;
-
-}
 
 async function finalLLMEval() {
     const FINAL_LLM_EVAL_INSTRUCTION = `
@@ -625,7 +578,7 @@ async function autoSearch(query, res) {
 
         const structuredResult = await llmEval(results);
         sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
-        sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
+        //sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
         sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
 
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
@@ -635,7 +588,8 @@ async function autoSearch(query, res) {
         relevantResults.forEach(result => currentResults.add(result));
 
         // performing second iteration of searches, evaluating those, then updating currentResults
-        for (const query of structuredResult.additionalQueries) {
+        for (query of structuredResult.additionalQueries) {
+            query = query + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
             const { allResults, relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
             //sendUpdate('additionalQuery', {additionalQuery: query});
             //sendUpdate('allResults', { allResults: allResults });
@@ -646,39 +600,19 @@ async function autoSearch(query, res) {
 
         // final evaluation and sources to present to user
         const finalResults = await finalLLMEval();
-        sendUpdate('finalResults', { finalResults: finalResults });
+        sendUpdate('finalResults', { finalResults: finalResults });;*/
 
         // Clear currentResults for future searches
         currentResults.clear();
-        console.log("Cleared currentResults for future searches");*/
+        console.log("Cleared currentResults for future searches")
 
         res.end();
 
-        /*
-        const more_results = await secondIteration(top_3_results);
-        sendUpdate('finalResults', { finalResults: more_results });
-
-        res.write('event: close\ndata: done\n\n');
-        res.end();*/
     } catch (error) {
         console.error('Error in autoSearch:', error);
         sendUpdate('error', { message: 'An error occurred during search' });
         res.end();
     }
 }
-/*
-    firstQuery = await initialPass();
-
-    results = await resultsRetrieval(firstQuery);
-
-    top_3_results = await rerankerEval(results);
-
-    more_results = await secondIteration(top_3_results);
-
-    return {
-        searchPlan: "filler for now",
-        firstQuery: firstQuery
-    };
-*/
 
 module.exports = { autoSearch };
