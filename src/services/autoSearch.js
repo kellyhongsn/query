@@ -631,17 +631,17 @@ async function autoSearch(query, res) {
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
         sendUpdate('topResults', { topResults: relevantResults });
 
-        /*
+        
         relevantResults.forEach(result => currentResults.add(result));
 
         // performing second iteration of searches, evaluating those, then updating currentResults
         for (const query of structuredResult.additionalQueries) {
             const { allResults, relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
-            sendUpdate('additionalQuery', {additionalQuery: query});
-            sendUpdate('allResults', { allResults: allResults });
+            //sendUpdate('additionalQuery', {additionalQuery: query});
+            //sendUpdate('allResults', { allResults: allResults });
             sendUpdate('relevantResults', { relevantResults: relevantResults });
         }
-
+/*
         //await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
 
         // final evaluation and sources to present to user
