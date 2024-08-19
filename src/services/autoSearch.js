@@ -619,7 +619,7 @@ async function autoSearch(query, res) {
         const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
         sendUpdate('firstQuery', { query: firstQuery });
 
-        /*
+        
         const results = await resultsRetrieval(firstQuery);
         sendUpdate('initialResults', { initialResults: results });
 
@@ -631,6 +631,7 @@ async function autoSearch(query, res) {
         const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
         sendUpdate('topResults', { topResults: relevantResults });
 
+        /*
         relevantResults.forEach(result => currentResults.add(result));
 
         // performing second iteration of searches, evaluating those, then updating currentResults
