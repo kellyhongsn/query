@@ -3,7 +3,6 @@ const Groq = require('groq-sdk');
 const axios = require('axios');
 const { Pool } = require('pg');
 const Anthropic = require('@anthropic-ai/sdk');
-const { Headers } = require('@anthropic-ai/sdk/_shims');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
