@@ -266,8 +266,7 @@ async function secondLlmEval(results, missingInformation) {
                             description: "Array of positions corresponding to highly relevant and credible sources"
                         }
                     },
-                    required: ["relevantPositions"],
-                    cache_control: {"type": "ephemeral"}
+                    required: ["relevantPositions"]
                 }
             }
         ],
@@ -278,8 +277,7 @@ async function secondLlmEval(results, missingInformation) {
             },
             {
                 type: "text",
-                text: INFO_INSTRUCTION,
-                cache_control: {"type": "ephemeral"}
+                text: INFO_INSTRUCTION
             }
         ],
         messages: [
@@ -289,8 +287,7 @@ async function secondLlmEval(results, missingInformation) {
             }
         ],
         max_tokens: 1400
-        },
-        { headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } }
+        }
     );
 
     const end_time = performance.now();
