@@ -491,10 +491,15 @@ async function finalLLMEval() {
 }
 
 function addUniqueResults(results) {
+    const uniqueResults = [];
     results.forEach(result => {
         const identifier = `${result.title.toLowerCase()}|${result.link.toLowerCase()}`;
-        currentResults.add(identifier);
+        if (!currentResults.has(identifier)) {
+            currentResults.add(identifier);
+            uniqueResults.push(result);
+        }
     });
+    return uniqueResults;
 }
 
 async function retrieveRerankUpdate(query, additionalInformationNeeded) {
@@ -503,10 +508,10 @@ async function retrieveRerankUpdate(query, additionalInformationNeeded) {
     console.log(results);
     console.log(typeof results);
     const structuredResult = await secondLlmEval(results, additionalInformationNeeded);
-    addUniqueResults(results.filter(result => structuredResult.relevantPositions.includes(result.position)));
+    const uniqueResults = addUniqueResults(results.filter(result => structuredResult.relevantPositions.includes(result.position)));
     
     return {
-        relevantResults: results.filter(result => structuredResult.relevantPositions.includes(result.position))
+        relevantResults: uniqueResults
     };
 }
 
