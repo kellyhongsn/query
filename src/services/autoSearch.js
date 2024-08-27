@@ -24,7 +24,6 @@ async function classifyQuery(query) {
                     properties: {
                         category: {
                             type: "integer",
-                            enum: [0, 1, 2],
                             description: "Number corresponding to query category: research paper (0), technical example (1), or some other general search (2)"
                         }
                     },
