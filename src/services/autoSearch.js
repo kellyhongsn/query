@@ -22,13 +22,16 @@ async function classifyQuery(query) {
         max_tokens: 10,
         response_format: {
             type: "json_object",
-            schema: {
-                type: "object",
-                properties: {
-                    category: {
-                        type: "integer",
-                        description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
-                    }
+            json_schema: {
+                name: "classfication",
+                strict: true,
+                schema: {
+                    type: "object",
+                    properties: {
+                        category: {
+                            type: "integer",
+                            description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
+                        }
                 },
                 required: ["category"],
                 additionalProperties: false
