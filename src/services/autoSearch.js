@@ -20,19 +20,25 @@ async function classifyQuery(query) {
         ],
         temperature: 0.2,
         max_tokens: 10,
-        response_format: {
-            type: "json_object",
-            schema: {
-                type: "object",
-                properties: {
-                    category: {
-                        type: "integer",
-                        description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
+        tools: [
+            {
+                type: "function",
+                function: {
+                    name: "classifyQuery",
+                    "strict": true,
+                    schema: {
+                        type: "object",
+                        properties: {
+                            category: {
+                                type: "integer",
+                                description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
+                            }
+                        },
+                        required: ["category"]
                     }
-                },
-                required: ["category"]
+                }
             }
-        }
+        ]
     });
 
     const category = chatCompletion.choices[0].message.parsed;
