@@ -12,39 +12,49 @@ async function classifyQuery(query) {
     Your task is to analyze the user's query and determine which category it belongs to, giving a number (0, 1, 2) as output.
     `;
 
-    const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-mini-2024-07-18",
-        messages: [
-          { role: "system", content: CLASSIFICATION_INSTRUCTION },
-          { role: "user", content: `given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`}
-        ],
-        temperature: 0.2,
+    const response = await anthropic.messages.create({
+        model: "claude-3-sonnet-20240229",
         max_tokens: 10,
-        response_format: {
-            type: json_schema,
-            json_schema: {
-                name: "classfication",
-                strict: true,
-                schema: {
-                    type: "object",
-                    properties: {
-                        category: {
-                            type: "integer",
-                            description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
-                        }
-                },
-                required: ["category"],
-                additionalProperties: false
+        temperature: 0.2,
+        system: CLASSIFICATION_INSTRUCTION,
+        messages: [
+            {
+                role: "user",
+                content: `Given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`
             }
-        }
-    }
+        ],
+        tools: [
+            {
+                type: "function",
+                function: {
+                    name: "classify_query",
+                    description: "Classify the query into one of three categories",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            category: {
+                                type: "integer",
+                                enum: [0, 1, 2],
+                                description: "Number corresponding to query category: research paper (0), technical example (1), or some other general search (2)"
+                            }
+                        },
+                        required: ["category"]
+                    }
+                }
+            }
+        ]
     });
 
-    const category = chatCompletion.choices[0].message.parsed;
+    const toolCalls = response.content.find(c => c.type === 'tool_calls')?.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) {
+        throw new Error('No tool calls found in the response');
+    }
 
-    console.log(category.category);
+    const category = JSON.parse(toolCalls[0].function.arguments).category;
 
-    return category.category;
+    console.log(category);
+
+    return category;
 }
 
 //retrieve top 10 results
