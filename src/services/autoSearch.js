@@ -14,8 +14,23 @@ async function classifyQuery(query) {
 
     const response = await anthropic.messages.create({
         model: "claude-3-sonnet-20240229",
-        max_tokens: 10,
-        temperature: 0.2,
+        tools: [
+            {
+                name: "classify_query",
+                description: "Classify the query into one of three categories",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        category: {
+                            type: "integer",
+                            enum: [0, 1, 2],
+                            description: "Number corresponding to query category: research paper (0), technical example (1), or some other general search (2)"
+                        }
+                    },
+                    required: ["category"]
+                }
+            }
+        ],
         system: CLASSIFICATION_INSTRUCTION,
         messages: [
             {
@@ -23,34 +38,16 @@ async function classifyQuery(query) {
                 content: `Given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`
             }
         ],
-        tools: [
-            {
-                type: "function",
-                function: {
-                    name: "classify_query",
-                    description: "Classify the query into one of three categories",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            category: {
-                                type: "integer",
-                                enum: [0, 1, 2],
-                                description: "Number corresponding to query category: research paper (0), technical example (1), or some other general search (2)"
-                            }
-                        },
-                        required: ["category"]
-                    }
-                }
-            }
-        ]
+        max_tokens: 10
     });
 
-    const toolCalls = response.content.find(c => c.type === 'tool_calls')?.tool_calls;
-    if (!toolCalls || toolCalls.length === 0) {
-        throw new Error('No tool calls found in the response');
+    const toolUseResponse = response.content.find(content => content.type === 'tool_use');
+
+    if (!toolUseResponse) {
+        throw new Error('No tool use response found');
     }
 
-    const category = JSON.parse(toolCalls[0].function.arguments).category;
+    const category = toolUseResponse.input.category;
 
     console.log(category);
 
