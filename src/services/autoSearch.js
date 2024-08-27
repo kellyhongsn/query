@@ -33,7 +33,7 @@ async function classifyQuery(query) {
             }
         ],
         system: [
-            { type: "text", text: LLM_EVAL_INSTRUCTION }
+            { type: "text", text: CLASSIFICATION_INSTRUCTION }
         ],
         messages: [
             {
