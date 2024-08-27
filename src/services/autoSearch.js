@@ -13,32 +13,27 @@ async function classifyQuery(query) {
     `;
 
     const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o-mini-2024-07-18",
         messages: [
           { role: "system", content: CLASSIFICATION_INSTRUCTION },
           { role: "user", content: `given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`}
         ],
         temperature: 0.2,
         max_tokens: 10,
-        tools: [
-            {
-                type: "function",
-                function: {
-                    name: "classifyQuery",
-                    "strict": true,
-                    schema: {
-                        type: "object",
-                        properties: {
-                            category: {
-                                type: "integer",
-                                description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
-                            }
-                        },
-                        required: ["category"]
+        response_format: {
+            type: "json_object",
+            schema: {
+                type: "object",
+                properties: {
+                    category: {
+                        type: "integer",
+                        description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
                     }
-                }
+                },
+                required: ["category"],
+                additionalProperties: false
             }
-        ]
+        }
     });
 
     const category = chatCompletion.choices[0].message.parsed;
