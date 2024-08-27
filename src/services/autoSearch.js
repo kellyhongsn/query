@@ -2,9 +2,45 @@ const { openai } = require('../utils/config');
 const { groq } = require('../utils/config');
 const { axios } = require('../utils/config');
 const { anthropic } = require('../utils/config');
-
 let originalQuery = '';
 let currentResults = new Set();
+let queryCategory = 2;
+  
+async function classifyQuery(query) {
+    CLASSIFICATION_INSTRUCTION = `
+    You are an AI assistant specialized in classifying user queries into one of three categories: research paper, technical example, or other general search.
+    Your task is to analyze the user's query and determine which category it belongs to, giving a number (0, 1, 2) as output.
+    `;
+
+    const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: CLASSIFICATION_INSTRUCTION },
+          { role: "user", content: `given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`}
+        ],
+        temperature: 0.2,
+        max_tokens: 10,
+        response_format: {
+            type: "json_object",
+            schema: {
+                type: "object",
+                properties: {
+                    category: {
+                        type: "integer",
+                        description: "Number corresponding to query category research paper (0), technical example (1), or some other general search (2)"
+                    }
+                },
+                required: ["category"]
+            }
+        }
+    });
+
+    const category = chatCompletion.choices[0].message.parsed;
+
+    console.log(category.category);
+
+    return category.category;
+}
 
 //retrieve top 10 results
 async function resultsRetrieval(searchQuery) {
@@ -91,7 +127,7 @@ async function llmEval(organicResults) {
     Use the provided tool to output your analysis. Be thorough and detailed in your evaluation.
     `;
 
-    const USER_PROMPT = `
+    const USER_PROMPT_RESEARCH = `
     Analyze the following query and search results, then provide a structured evaluation using the evaluate_search_results tool:
 
     1. Query:
@@ -111,7 +147,7 @@ async function llmEval(organicResults) {
 
     2. Evaluate the search results for relevance and credibility
     - Assess the relevance of each result to the query
-    - Consider the credibility of the sources (e.g., academic institutions, reputable news outlets, government websites, expert blogs)
+    - Consider the credibility of the sources (publishing journal, citations, etc.)
     - Look for indicators of accuracy and up-to-date information
 
     3. Identify the 3-5 most relevant sources that best address the user's query
@@ -126,6 +162,86 @@ async function llmEval(organicResults) {
 
     Provide your analysis using the evaluate_search_results tool. Be thorough and detailed in each section of your analysis.
     `;
+
+    const USER_PROMPT_TECHNICAL = `
+    Analyze the following query and search results, then provide a structured evaluation using the evaluate_search_results tool:
+
+    1. Query:
+    <query>
+    ${originalQuery}
+    </query>
+
+    2. Search Results:
+    <search_results>
+    ${jsonToString(organicResults)}
+    </search_results>
+
+    Follow these steps:
+    1. Analyze the query:
+    - Identify the main topic, specific implementation or technique, and any contextual keywords.
+    - Consider the level of technical detail or expertise required to adequately address the query.
+
+    2. Evaluate the search results for relevance and credibility:
+    - Assess the relevance of each result based on how directly it addresses the technical implementation requested in the query.
+    - Consider the credibility of the sources (e.g., recognized technical blogs, official documentation, reputable forums, and academic publications).
+    - Look for clear explanations, code examples, or step-by-step guides that indicate practical usability.
+    - Prioritize up-to-date information, especially for rapidly evolving fields.
+
+    3. Identify the 3-5 most relevant sources that best address the user's query:
+    - Extract the positions of the most relevant sources.
+
+    4. Determine what additional information is needed and provide additional queries to search on Google with that could fill the missing information:
+    - Identify any gaps in the information provided by the current search results.
+    - Consider what follow-up questions or searches might be necessary to fully address the user's query.
+    - List up to 2-3 additional queries that would be most helpful in addressing the gaps in the current search results.
+    - These queries should be designed to find more detailed technical guides or examples, such as "how to implement x for (more specific subtopic)" or "example code for _".
+
+    Provide your analysis using the evaluate_search_results tool. Be thorough and detailed in each section of your analysis.
+    `;
+
+    const USER_PROMPT_GENERAL = `
+    Analyze the following query and search results, then provide a structured evaluation using the evaluate_search_results tool:
+
+    1. Query:
+    <query>
+    ${originalQuery}
+    </query>
+
+    2. Search Results:
+    <search_results>
+    ${jsonToString(organicResults)}
+    </search_results>
+
+    Follow these steps:
+    1. Analyze the query:
+    - Identify the main topic and the intent behind the query
+    - Consider the level of detail or specificity required to answer the query adequately.
+
+    2. Evaluate the search results for relevance and credibility:
+    - Assess the relevance of each result to the query, considering how well it addresses the user's intent.
+    - Consider the credibility of the sources (e.g., well-known websites, expert authors, official pages).
+    - Look for clear, accurate, and up-to-date information that meets the user's needs.
+    - Consider the trustworthiness of the domain and the authority of the content creator.
+
+    3. Identify the 3-5 most relevant sources that best address the user's query:
+    - Extract the positions of the most relevant sources.
+
+    4. Determine what additional information is needed and provide additional queries to search on Google with that could fill the missing information:
+    - Identify any gaps in the information provided by the current search results.
+    - Consider what follow-up questions or searches might be necessary to fully address the user's query.
+    - List up to 2-3 additional queries that would be most helpful in addressing the gaps in the current search results.
+    - These queries should be designed to produce complementary information or alternative perspectives on the topic.
+
+    Provide your analysis using the evaluate_search_results tool. Be thorough and detailed in each section of your analysis.
+    `;
+
+    let USER_PROMPT = USER_PROMPT_GENERAL;
+
+    if (queryCategory === 0) {
+        USER_PROMPT = USER_PROMPT_RESEARCH;
+    } else if (queryCategory === 1) {
+        USER_PROMPT = USER_PROMPT_TECHNICAL;
+    }
 
     const response = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20240620",
@@ -239,7 +355,7 @@ async function secondLlmEval(results, missingInformation) {
 
     2. Identify the 3-5 most relevant sources that best address the user's query and satisfies parts of the missing information
     - Assess the relevance of each result to the query
-    - Consider the credibility of the sources (e.g., academic institutions, reputable news outlets, government websites, expert blogs)
+    - Consider the credibility of the sources
     - Look for indicators of accuracy and up-to-date information
     - Extract the positions of the most relevant sources
 
@@ -406,7 +522,11 @@ async function constructSpecificQuery(textChunk) {
         max_tokens: 200,
     });
 
-    const specificQuery = chatCompletion.choices[0].message.content + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+    const specificQuery = chatCompletion.choices[0].message.content
+
+    if (queryCategory === 0) {
+        specificQuery = specificQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+    }
 
     console.log(specificQuery);
 
@@ -516,8 +636,6 @@ async function retrieveRerankUpdate(query, additionalInformationNeeded) {
 }
 
 async function autoSearch(query, res) {
-    
-    originalQuery = query;
 
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -528,42 +646,87 @@ async function autoSearch(query, res) {
     const sendUpdate = (event, data) => {
         res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
+    
+    originalQuery = query;
+
+    queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
 
     try {
-        // performing first search and evaluating results
-        const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-        sendUpdate('firstQuery', { query: firstQuery });
+        if (queryCategory === 0) {
+            // performing first search and evaluating results
+            const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+            sendUpdate('firstQuery', { query: firstQuery });
+    
+            
+            const results = await resultsRetrieval(firstQuery);
+            sendUpdate('initialResults', { initialResults: results });
+    
+            const structuredResult = await llmEval(results);
+            //sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
+            //sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
+            sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
+    
+            const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
+            sendUpdate('topResults', { topResults: relevantResults });
+    
+            
+            relevantResults.forEach(result => currentResults.add(result));
+    
+            // performing second iteration of searches, evaluating those, then updating currentResults
+            for (query of structuredResult.additionalQueries) {
+                query = query + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
+                const { relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
+                //sendUpdate('additionalQuery', {additionalQuery: query});
+                //sendUpdate('allResults', { allResults: allResults });
+                sendUpdate('relevantResults', { relevantResults: relevantResults });
+            }
+    /*
+            //await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
+    
+            // final evaluation and sources to present to user
+            const finalResults = await finalLLMEval();
+            sendUpdate('finalResults', { finalResults: finalResults });;*/
+    
+    } else if (queryCategory === 1) {
+        const initialResults = await resultsRetrieval(originalQuery);
+        sendUpdate('initialResults', { initialResults: initialResults });
 
-        
-        const results = await resultsRetrieval(firstQuery);
-        sendUpdate('initialResults', { initialResults: results });
-
-        const structuredResult = await llmEval(results);
-        //sendUpdate('additionalInformationNeeded', { additionalInformationNeeded: structuredResult.additionalInformationNeeded });
-        //sendUpdate('reasoningForChosenSources', { reasoningForChosenSources: structuredResult.reasoningForChosenSources });
-        sendUpdate('additionalQueries', { additionalQueries: structuredResult.additionalQueries });
-
-        const relevantResults = results.filter(result => structuredResult.relevantPositions.includes(result.position));
+        const structuredResultInitial = await llmEval(initialResults);
+        const relevantResults = initialResults.filter(result => structuredResultInitial.relevantPositions.includes(result.position));
         sendUpdate('topResults', { topResults: relevantResults });
 
-        
         relevantResults.forEach(result => currentResults.add(result));
 
-        // performing second iteration of searches, evaluating those, then updating currentResults
-        for (query of structuredResult.additionalQueries) {
-            query = query + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
-            const { relevantResults } = await retrieveRerankUpdate(query, structuredResult.additionalInformationNeeded);
-            //sendUpdate('additionalQuery', {additionalQuery: query});
-            //sendUpdate('allResults', { allResults: allResults });
+        const siteResults = await resultsRetrieval(originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co");
+        sendUpdate('firstQuery', { query: originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co" });
+        
+        const structuredResultSite = await llmEval(siteResults);
+        const relevantResultsSite = siteResults.filter(result => structuredResultSite.relevantPositions.includes(result.position));
+        relevantResultsSite.forEach(result => currentResults.add(result));
+        sendUpdate('topResultsSite', { topResultsSite: relevantResultsSite }); //add to content
+        sendUpdate('additionalQueries', { additionalQueries: structuredResultSite.additionalQueries });
+
+        for (query of structuredResultSite.additionalQueries) {
+            const { relevantResults } = await retrieveRerankUpdate(query, structuredResultSite.additionalInformationNeeded);
             sendUpdate('relevantResults', { relevantResults: relevantResults });
         }
-/*
-        //await Promise.all(additionalQueries.map(query => retrieveRerankUpdate(query, additionalInformationNeeded)));
 
-        // final evaluation and sources to present to user
-        const finalResults = await finalLLMEval();
-        sendUpdate('finalResults', { finalResults: finalResults });;*/
+    } else {
+        const initialResults = await resultsRetrieval(originalQuery);
+        sendUpdate('initialResults', { initialResults: initialResults });
 
+        const structuredResultInitial = await llmEval(initialResults);
+        const relevantResults = initialResults.filter(result => structuredResultInitial.relevantPositions.includes(result.position));
+        sendUpdate('topResults', { topResults: relevantResults });
+
+        relevantResults.forEach(result => currentResults.add(result));
+
+        for (query of structuredResultInitial.additionalQueries) {
+            const { relevantResults } = await retrieveRerankUpdate(query, structuredResultInitial.additionalInformationNeeded);
+            sendUpdate('relevantResults', { relevantResults: relevantResults });
+        }
+
+    }   
         // Clear currentResults for future searches
         currentResults.clear();
         console.log("Cleared currentResults for future searches")
@@ -571,8 +734,8 @@ async function autoSearch(query, res) {
         sendUpdate('done', { done: true });
 
         res.end();
-
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error in autoSearch:', error);
         sendUpdate('error', { message: 'An error occurred during search' });
         res.end();
