@@ -32,7 +32,9 @@ async function classifyQuery(query) {
                 }
             }
         ],
-        system: CLASSIFICATION_INSTRUCTION,
+        system: [
+            { type: "text", text: LLM_EVAL_INSTRUCTION }
+        ],
         messages: [
             {
                 role: "user",
