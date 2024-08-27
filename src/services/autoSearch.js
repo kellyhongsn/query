@@ -37,6 +37,7 @@ async function classifyQuery(query) {
                 additionalProperties: false
             }
         }
+    }
     });
 
     const category = chatCompletion.choices[0].message.parsed;
