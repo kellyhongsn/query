@@ -10,6 +10,7 @@ async function classifyQuery(query) {
     CLASSIFICATION_INSTRUCTION = `
     You are an AI assistant specialized in classifying user queries into one of three categories: research paper, technical example, or other general search.
     Your task is to analyze the user's query and determine which category it belongs to, giving a number (0, 1, 2) as output.
+    Use the classify_query tool to classify the query.
     `;
 
     const response = await anthropic.messages.create({
