@@ -21,7 +21,7 @@ async function classifyQuery(query) {
         temperature: 0.2,
         max_tokens: 10,
         response_format: {
-            type: "json_object",
+            type: json_schema,
             json_schema: {
                 name: "classfication",
                 strict: true,
