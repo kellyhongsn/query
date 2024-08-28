@@ -7,7 +7,7 @@ let currentResults = new Set();
 let queryCategory = 1;
   
 async function classifyQuery(query) {
-    CLASSIFICATION_INSTRUCTION = `
+    const CLASSIFICATION_INSTRUCTION = `
     You are an AI assistant specialized in classifying user queries into one of three categories: research paper, technical example, or other general search.
     Your task is to analyze the user's query and determine which category it belongs to, giving a number (0, 1, 2) as output.
     Use the classify_query tool to classify the query.
@@ -40,9 +40,10 @@ async function classifyQuery(query) {
                 content: `Given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`
             }
         ],
-        max_tokens: 10
+        max_tokens: 100
     });
 
+    // Extract the tool use response
     const toolUseResponse = response.content.find(content => content.type === 'tool_use');
 
     if (!toolUseResponse) {
@@ -663,7 +664,7 @@ async function autoSearch(query, res) {
     
     originalQuery = query;
 
-    //queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
+    queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
 
     try {
         if (queryCategory === 0) {
