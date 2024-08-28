@@ -665,7 +665,7 @@ async function autoSearch(query, res) {
     originalQuery = query;
 
     queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
-
+/*
     try {
         if (queryCategory === 0) {
             // performing first search and evaluating results
@@ -754,7 +754,7 @@ async function autoSearch(query, res) {
         console.error('Error in autoSearch:', error);
         sendUpdate('error', { message: 'An error occurred during search' });
         res.end();
-    }
+    }*/
 }
 
 module.exports = { autoSearch };
