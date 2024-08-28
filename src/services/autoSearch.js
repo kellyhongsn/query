@@ -52,7 +52,7 @@ async function classifyQuery(query) {
 
     const category = toolUseResponse.input.category;
 
-    console.log(category);
+    console.log(`Query category: ${category}`);
 
     return category;
 }
