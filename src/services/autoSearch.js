@@ -40,7 +40,7 @@ async function classifyQuery(query) {
                 content: `Given this query: "${query}", determine whether the user is looking for a research paper (0), technical example (1), or some other general search (2). Give the corresponding number (0, 1, 2) as your output.`
             }
         ],
-        max_tokens: 100
+        max_tokens: 300
     });
 
     // Extract the tool use response
