@@ -4,7 +4,7 @@ const { axios } = require('../utils/config');
 const { anthropic } = require('../utils/config');
 let originalQuery = '';
 let currentResults = new Set();
-let queryCategory = 2;
+let queryCategory = 1;
   
 async function classifyQuery(query) {
     CLASSIFICATION_INSTRUCTION = `
@@ -663,7 +663,7 @@ async function autoSearch(query, res) {
     
     originalQuery = query;
 
-    queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
+    //queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
 
     try {
         if (queryCategory === 0) {
