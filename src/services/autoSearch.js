@@ -707,6 +707,8 @@ async function autoSearch(query, res) {
             sendUpdate('finalResults', { finalResults: finalResults });;*/
     
     } else if (queryCategory === 1) {
+        sendUpdate('firstQuery', { query: originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co" });
+        
         const initialResults = await resultsRetrieval(originalQuery);
         sendUpdate('initialResults', { initialResults: initialResults });
 
@@ -717,7 +719,6 @@ async function autoSearch(query, res) {
         relevantResults.forEach(result => currentResults.add(result));
 
         const siteResults = await resultsRetrieval(originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co");
-        sendUpdate('firstQuery', { query: originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co" });
         
         const structuredResultSite = await llmEval(siteResults);
         const relevantResultsSite = siteResults.filter(result => structuredResultSite.relevantPositions.includes(result.position));
