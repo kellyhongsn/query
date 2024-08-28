@@ -700,7 +700,7 @@ async function autoSearch(query, res) {
     
             // final evaluation and sources to present to user
             const finalResults = await finalLLMEval();
-            sendUpdate('finalResults', { finalResults: finalResults });;*/
+            sendUpdate('finalResults', { finalResults: finalResults });;*//*
     
     } else if (queryCategory === 1) {
         const initialResults = await resultsRetrieval(originalQuery);
