@@ -4,7 +4,7 @@ const { axios } = require('../utils/config');
 const { anthropic } = require('../utils/config');
 let originalQuery = '';
 let currentResults = new Set();
-let queryCategory = 1;
+let queryCategory = 2;
   
 async function classifyQuery(query) {
     const CLASSIFICATION_INSTRUCTION = `
@@ -665,7 +665,11 @@ async function autoSearch(query, res) {
     originalQuery = query;
 
     queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
-/*
+
+    if (queryCategory == undefined) {
+        queryCategory = 2;
+    }
+
     try {
         if (queryCategory === 0) {
             // performing first search and evaluating results
@@ -700,7 +704,7 @@ async function autoSearch(query, res) {
     
             // final evaluation and sources to present to user
             const finalResults = await finalLLMEval();
-            sendUpdate('finalResults', { finalResults: finalResults });;*//*
+            sendUpdate('finalResults', { finalResults: finalResults });;*/
     
     } else if (queryCategory === 1) {
         const initialResults = await resultsRetrieval(originalQuery);
@@ -754,7 +758,7 @@ async function autoSearch(query, res) {
         console.error('Error in autoSearch:', error);
         sendUpdate('error', { message: 'An error occurred during search' });
         res.end();
-    }*/
+    }
 }
 
 module.exports = { autoSearch };
