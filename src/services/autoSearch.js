@@ -4,8 +4,37 @@ const { axios } = require('../utils/config');
 const { anthropic } = require('../utils/config');
 let originalQuery = '';
 let currentResults = new Set();
-let queryCategory = 2;
-  
+let queryCategory = 3;
+
+async function classifyQuery(query) {
+    console.log("entered classifyQuery function");
+
+    data = {
+        "inputs": query,
+        "parameters": {}
+    }
+	const response = await fetch(
+		"https://x8nqx5sqlkvqafjb.us-east-1.aws.endpoints.huggingface.cloud",
+		{
+			headers: { 
+				"Accept" : "application/json",
+				"Authorization": "Bearer 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",
+				"Content-Type": "application/json" 
+			},
+			method: "POST",
+			body: JSON.stringify(data),
+		}
+	);
+
+	const result = await response.json();
+	return parseInt(result.category);
+}
+
+classifyQuery("research papers on gpu optimization").then((response) => {
+	console.log(response);
+});
+
+  /*
 async function classifyQuery(query) {
     const CLASSIFICATION_INSTRUCTION = `
     You are an AI assistant specialized in classifying user queries into one of three categories: research paper, technical example, or other general search.
@@ -55,7 +84,7 @@ async function classifyQuery(query) {
     console.log(`Query category: ${category}`);
 
     return category;
-}
+}*/
 
 //retrieve top 10 results
 async function resultsRetrieval(searchQuery) {
@@ -664,14 +693,16 @@ async function autoSearch(query, res) {
     
     originalQuery = query;
 
-    queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical example, 2 = general search
+    queryCategory = await classifyQuery(originalQuery); // 0 = research paper, 1 = technical search, 2 = supportive evidence for argumentative paper, 3 = general search
 
+    console.log(queryCategory);
+    
     if (queryCategory == undefined) {
-        queryCategory = 2;
+        queryCategory = 3;
     }
 
     try {
-        if (queryCategory === 0) {
+        if (queryCategory == 0) {
             // performing first search and evaluating results
             const firstQuery = originalQuery + " site:arxiv.org | site:nature.com | site:.org | site:.edu | site:.gov | inurl:doi";
             sendUpdate('firstQuery', { query: firstQuery });
@@ -706,7 +737,7 @@ async function autoSearch(query, res) {
             const finalResults = await finalLLMEval();
             sendUpdate('finalResults', { finalResults: finalResults });;*/
     
-    } else if (queryCategory === 1) {
+    } else if (queryCategory == 1) { //technical search
         sendUpdate('firstQuery', { query: originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co" });
         
         const initialResults = await resultsRetrieval(originalQuery);
@@ -719,6 +750,31 @@ async function autoSearch(query, res) {
         relevantResults.forEach(result => currentResults.add(result));
 
         const siteResults = await resultsRetrieval(originalQuery + " site:arxiv.org | site:github.com | site:stackoverflow.com | site:medium.com | site:kaggle.com | site:towardsdatascience.com | site:paperswithcode.com | site:huggingface.co");
+        
+        const structuredResultSite = await llmEval(siteResults);
+        const relevantResultsSite = siteResults.filter(result => structuredResultSite.relevantPositions.includes(result.position));
+        relevantResultsSite.forEach(result => currentResults.add(result));
+        sendUpdate('topResultsSite', { topResultsSite: relevantResultsSite }); //add to content
+        sendUpdate('additionalQueries', { additionalQueries: structuredResultSite.additionalQueries });
+
+        for (query of structuredResultSite.additionalQueries) {
+            const { relevantResults } = await retrieveRerankUpdate(query, structuredResultSite.additionalInformationNeeded);
+            sendUpdate('relevantResults', { relevantResults: relevantResults });
+        }
+
+    } else if (queryCategory == 2) {
+        sendUpdate('firstQuery', { query: originalQuery + " site:nytimes.com | site:wsj.com | site:reuters.com | site:bbc.com | site:economist.com | site:.edu | site:.gov | site:.org" });
+        
+        const initialResults = await resultsRetrieval(originalQuery);
+        sendUpdate('initialResults', { initialResults: initialResults });
+
+        const structuredResultInitial = await llmEval(initialResults);
+        const relevantResults = initialResults.filter(result => structuredResultInitial.relevantPositions.includes(result.position));
+        sendUpdate('topResults', { topResults: relevantResults });
+
+        relevantResults.forEach(result => currentResults.add(result));
+
+        const siteResults = await resultsRetrieval(originalQuery + " site:nytimes.com | site:wsj.com | site:reuters.com | site:bbc.com | site:economist.com | site:.edu | site:.gov | site:.org");
         
         const structuredResultSite = await llmEval(siteResults);
         const relevantResultsSite = siteResults.filter(result => structuredResultSite.relevantPositions.includes(result.position));
