@@ -64,6 +64,7 @@ Give the final result as your response so I can input that directly into Google 
 - With the example given, the output would simply be “(Sleep quality) AND (Sleep-disordered breathing | SDB | apnea) impact on ("neurodegenerative diseases" | (cognitive decline) | dementia | Alzheimer’s) AND (prevent | recommendations | interventions)”
 `;
 
+//similar idea, preprocess html for relevant tags and keywords, picking out chunks
 async function findSimilar(originalQuery, textChunk, currentTitle) {
 
     SYSTEM_INSTRUCTION = '';

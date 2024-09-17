@@ -1,4 +1,3 @@
-
 async function classifyQuery(query) {
     data = {
         "inputs": query,

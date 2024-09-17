@@ -1,4 +1,4 @@
-const { performSearch } = require('./webScraping');
+const { performSearch } = require('../webScraping');
 
 async function testWebScraper(query) {
   try {
@@ -19,7 +19,6 @@ async function testWebScraper(query) {
   }
 }
 
-// You can change this query to whatever you want to search for
 const searchQuery = 'llm optimization';
 
 testWebScraper(searchQuery);
