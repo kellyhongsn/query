@@ -36,14 +36,15 @@ async function classifyQuery(query) {
 
 //performs depth search on top 2 results
 async function performDepthSearch(link, query) {
-    //call depthSearch with link and query
+    queries = await depthSearch(link, query);
+    results = [];
 
-    //with returned list of queries from depthSearch, perform results retrieval on them
+    for (query of queries) {
+        const { relevantResults } = await retrieveRerankUpdate(query, '');
+        results.append(relevantResults);
+    }
 
-    //similar to how we do it in rerankRetrieveUpdate:
-    //call secondLLMEval on these to get reranked results
-    //do something like: const uniqueResults = addUniqueResults(results.filter(result => structuredResult.relevantPositions.includes(result.position)));
-    //and return these results
+    return results;
 
 }
 
@@ -426,8 +427,7 @@ async function autoSearch(query, res) {
 
         const topTwoResults = relevantResults.slice(0, 2);
         for (const result of topTwoResults) {
-            const depthSearchResults = await performDepthSearch(result.link, originalQuery);
-            sendUpdate('depthSearchResults', { depthSearchResults });
+            await performDepthSearch(result.link, originalQuery);
         }
 
         relevantResults.forEach(result => currentResults.add(result));

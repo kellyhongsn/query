@@ -11,6 +11,7 @@ async function testWebScraper(query) {
       console.log(`Result ${index + 1}:`);
       console.log(`Title: ${result.title}`);
       console.log(`Link: ${result.link}`);
+      console.log(typeof(result.link))
       console.log(`Snippet: ${result.snippet}`);
       console.log('---');
     });
@@ -19,6 +20,6 @@ async function testWebScraper(query) {
   }
 }
 
-const searchQuery = 'llm optimization';
+const searchQuery = 'research papers on combining reasoning and action in llm agents';
 
 testWebScraper(searchQuery);

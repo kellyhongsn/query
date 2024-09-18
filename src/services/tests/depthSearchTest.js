@@ -19,6 +19,4 @@ async function testDepthSearch(link, query) {
     }
   }
   
-  const searchQuery = 'llm optimization';
-  
-  testWebScraper(searchQuery);
+  testDepthSearch("https://arxiv.org/html/2312.10003v1", "research papers on combining reasoning and action in llm agents");

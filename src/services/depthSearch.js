@@ -3,141 +3,341 @@ const { openai } = require('../utils/config');
 const cheerio = require('cheerio');
 
 async function depthSearch(link, query) {
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    let htmlCode = '';
-    let screenshot = '';
-    let extractedText = '';
-    let generatedQueries = [];
+    if (link.includes("pdf")) {
+        bodyText = await preprocesspdf(link);
+        keywords = await getKeywords(bodyText);
+        textChunks = extractFromKeywords(bodyText, keywords);
+        queries = generateQueries(textChunk, query);
 
+        return queries;
+    } else {
+        links, bodyText = await preprocess(link);
+        keywords = await getKeywords(bodyText);
+        screenshot = await getScreenshot(link);
+
+        actionNeeded, action = await screenshotAnalysis(query, screenshot);
+
+        if (!actionNeeded) {
+            textChunks = extractFromKeywords(bodyText, keywords);
+            queries = generateQueries(textChunk, query);
+            return queries;
+        } else {
+            newLink = performAction(link, links, action);
+            links, bodyText = await preprocess(link);
+            keywords = await getKeywords(bodyText);
+            textChunks = extractFromKeywords(bodyText, keywords);
+            queries = generateQueries(textChunk, query);
+
+            return queries;
+        }
+    }
+}
+
+async function preprocess(link) {
     try {
-        await page.goto(link, { waitUntil: 'networkidle0' });
-        htmlCode = await page.content();
-        screenshot = await page.screenshot({ encoding: 'base64' });
+        const fetch = (await import('node-fetch')).default;
 
-        const { keywords, clickAction } = await analyzeScreenshot(screenshot, query);
-        
-        if (clickAction) {
-            const clickableElement = await findClickableElement(page, clickAction);
-            if (clickableElement) {
-                await clickableElement.click();
-                await page.waitForNavigation({ waitUntil: 'networkidle0' });
-                htmlCode = await page.content();
-                screenshot = await page.screenshot({ encoding: 'base64' });
-            }
+        const response = await fetch(link);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch the URL: ${response.statusText}`);
         }
 
-        extractedText = await extractFromKeywords(htmlCode, keywords);
-        generatedQueries = await generateQueries(extractedText, query);
-    } catch (error) {
-        console.error('Error in depthSearch:', error);
-    } finally {
-        await browser.close();
-    }
+        const htmlText = await response.text();
 
-    return {
-        generatedQueries
-    };
-}
+        const $ = cheerio.load(htmlText);
 
-async function analyzeScreenshot(screenshot, query) {
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: "You are an AI assistant specialized in analyzing web page screenshots and identifying relevant content and actions."
-                },
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: `Analyze this screenshot in relation to the query: "${query}". Provide the following:
-                                1. What are the 3-5 most relevant keywords or phrases?
-                                2. Is there any specific button or link that should be clicked to get more relevant content? If yes, describe it precisely.`
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: `data:image/jpeg;base64,${screenshot}`
-                            }
-                        }
-                    ]
+        const linksArray = $('a')
+            .map((i, el) => {
+                const href = $(el).attr('href');
+                const text = $(el).text().trim();
+                if (href) {
+                    const absoluteHref = new URL(href, link).href;
+                    return {
+                        text,
+                        href: absoluteHref
+                    };
                 }
-            ],
-            max_tokens: 300
-        });
+                return null;
+            })
+            .get()
+            .filter(link => link);
 
-        const content = response.choices[0].message.content;
-        const lines = content.split('\n');
-        
-        const keywords = lines
-            .find(line => line.startsWith('1.'))
-            ?.replace('1.', '')
-            .split(',')
-            .map(keyword => keyword.trim())
-            .filter(keyword => keyword !== '') || [];
+        const links = linksArray
+            .map(link => `(${link.text}, ${link.href})`)
+            .join(' ');
 
-        const clickAction = lines
-            .find(line => line.startsWith('2.'))
-            ?.replace('2.', '')
-            .trim();
+        const bodyText = $('body')
+            .text()
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase(); 
 
-        return { keywords, clickAction };
+        return {
+            links,
+            bodyText
+        };
     } catch (error) {
-        console.error('Error in analyzeScreenshot:', error);
-        return { keywords: [], clickAction: null };
-    }
-}
-
-async function findClickableElement(page, clickAction) {
-    if (!clickAction || clickAction.toLowerCase().includes('no') || clickAction.toLowerCase().includes('none')) {
+        console.error('Error:', error);
         return null;
     }
-
-    return await page.evaluateHandle((action) => {
-        const elements = [...document.querySelectorAll('a, button')];
-        return elements.find(el => 
-            el.textContent.toLowerCase().includes(action.toLowerCase()) ||
-            el.getAttribute('aria-label')?.toLowerCase().includes(action.toLowerCase())
-        );
-    }, clickAction);
 }
 
-async function extractFromKeywords(htmlCode, keywords) {
-    const $ = cheerio.load(htmlCode);
-    let extractedTexts = [];
+async function preprocesspdf(originalUrl){
+    try {
+        const modifiedUrl = 'r.jina.ai/' + originalUrl;
 
-    $('body *').each((_, element) => {
-        const text = $(element).text().trim();
-        if (text) {
-            for (const keyword of keywords) {
-                if (text.toLowerCase().includes(keyword.toLowerCase())) {
-                    const start = Math.max(0, text.toLowerCase().indexOf(keyword.toLowerCase()) - 150);
-                    const end = Math.min(text.length, start + 300);
-                    extractedTexts.push(text.slice(start, end));
-                    break;
-                }
-            }
+        const fetch = (await import('node-fetch')).default;
+
+        const response = await fetch(modifiedUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch the URL: ${response.statusText}`);
         }
-    });
 
-    return extractedTexts.join('\n\n');
+        const htmlText = await response.text();
+
+        const $ = cheerio.load(htmlText);
+
+        const bodyText = $('body')
+            .text()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return bodyText.toLowerCase();
+    } catch (error) {
+        console.error('Error:', error);
+        return null;
+    }
 }
 
-async function generateQueries(extractedText, originalQuery) {
-    const response = await openai.chat.completions.create({
+async function getKeywords(textChunk, query) {
+    SYSTEM_INSTRUCTION = `
+    You are a search assistant specialized in identifying keywords of a webapge based on the user's query.
+    `;
+
+    MESSAGE_INPUT = `
+    Given that the user's query is: ${query}
+      
+    And a text snippet from this website is: ${textChunk} 
+
+    What are 3-5 keywords from the text snippet that would be most relevant to the user?
+
+    Give your final answer in a comma-separated list, and that list only so I can perform simple String manipulation and simply get the keywords to do keyword search by."
+    `;
+
+    if (textChunk.length > 2500) {
+        textChunk = textChunk.slice(200, 2000);
+    }
+
+    const chatCompletion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-            { role: "system", content: "You are an AI assistant tasked with generating search queries based on extracted text and an original query." },
-            { role: "user", content: `Given the following extracted text and original query, generate 3 specific search queries that will help find information to comprehensively answer the original query:\n\nExtracted text: ${extractedText}\n\nOriginal query: ${originalQuery}` }
+        { role: "system", content: SYSTEM_INSTRUCTION },
+        { role: "user", content: MESSAGE_INPUT }
         ],
-        max_tokens: 150
+        temperature: 0.2,
+        max_tokens: 100,
     });
 
-    return response.choices[0].message.content.split('\n');
+    let keywords = chatCompletion.choices[0].message.content;
+    
+    const keywordsArray = keywords.split(',').map(keyword => keyword.trim().toLowerCase());
+
+    return keywordsArray;
+}
+
+async function getScreenshot(link) { 
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+  
+    try {
+      await page.setViewport({
+        width: 1920,   
+        height: 1080,
+        deviceScaleFactor: 1,
+      });
+  
+      await page.goto(link, { waitUntil: 'networkidle0', timeout: 30000 });
+  
+      const screenshotBase64 = await page.screenshot({
+        fullPage: false,
+        encoding: 'base64',
+      });
+  
+      return screenshotBase64;
+    } catch (error) {
+      console.error(`Error capturing screenshot of ${link}:`, error);
+      return null;
+    } finally {
+      await page.close();
+      await browser.close();
+    }
+}
+
+function extractFromKeywords(bodyText, keywords) {
+    const maxChunks = 5;
+    const chunkLength = 300;
+    let textChunks = [];
+    let usedIndices = [];
+  
+    keywords.forEach(keyword => {
+      const regex = new RegExp(keyword, 'i');
+      let match;
+  
+      while ((match = regex.exec(bodyText)) !== null && textChunks.length < maxChunks) {
+        const keywordIndex = match.index;
+        
+        const start = Math.max(0, keywordIndex - Math.floor(chunkLength / 2));
+        const end = Math.min(bodyText.length, keywordIndex + Math.floor(chunkLength / 2));
+        
+        const overlaps = usedIndices.some(([existingStart, existingEnd]) => {
+          return (start <= existingEnd && end >= existingStart);
+        });
+  
+        if (!overlaps) {
+          const chunk = bodyText.slice(start, end).trim();
+          textChunks.push(chunk);
+          usedIndices.push([start, end]);
+        }
+  
+        regex.lastIndex = keywordIndex + 1;
+      }
+    });
+  
+    return textChunks.slice(0, maxChunks).join('\n');
+}
+
+async function generateQueries(textChunk, query) {
+    const SYSTEM_INSTRUCTION = `
+    You are an advanced AI assistant specialized in crafting optimized Google search queries to go deeper into the topic. Given the user’s initial search query and a text chunk of the website they are currently on, your task is to create two new search queries:
+
+    1. The first query should refine the user's original query by incorporating keywords and topics from the text chunk. This query should explore the original topic but be a bit more specific.
+    
+    2. The second query should focus on a deeper subtopic that you can infer from the text chunk. This query should dig into a more specific aspect of the text content that may be relevant but is not directly covered by the user's original query.
+
+    Please return the two queries as a comma-separated list without any additional text or explanation, so string manipulation can directly applied and each element can just be put into Google.
+
+    Example response format:
+    query1, query2
+    `;
+
+    const MESSAGE_INPUT = `
+    User query: ${query}
+  
+    Text chunk:
+    ${textChunk}
+    `;
+
+    const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: SYSTEM_INSTRUCTION },
+            { role: "user", content: MESSAGE_INPUT }
+        ],
+        temperature: 0.2,
+        max_tokens: 400,
+    });
+
+    let queriesString = chatCompletion.choices[0].message.content.trim();
+
+    let queriesArray = queriesString.split(',').map(query => query.trim());
+
+    return queriesArray;
+}
+
+async function screenshotAnalysis(userQuery, screenshotBase64) {
+    const SYSTEM_INSTRUCTION = `
+    You are an AI assistant that helps determine if a webpage shows the full content desired by the user or if additional actions are needed to access the full content. Based on the user's query and a screenshot of the webpage, provide an action if needed, such as "click on 'view more' button", or output "none" if the page already shows the full content.
+
+    Instructions:
+    - Analyze the screenshot provided (in Base64 encoding).
+    - Compare it with the user's query.
+    - If the full content is visible in the screenshot, respond with "none".
+    - If additional action is needed to view the full content, specify the action (e.g., "click on 'view PDF' button").
+
+    Respond with your conclusion without any additional text.
+    `;
+
+  try {
+    const chatCompletion = await openai.createChatCompletion({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_INSTRUCTION },
+        { role: 'user', content: [{
+                type: 'text',
+                text: userQuery
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: `data:image/jpeg;base64, ${screenshotBase64}`
+                }
+            }
+        ] },
+      ],
+      temperature: 0.2,
+      max_tokens: 100,
+    });
+
+    const assistantResponse = chatCompletion.data.choices[0].message.content.trim();
+
+    const lowerCaseResponse = assistantResponse.toLowerCase();
+
+    if (lowerCaseResponse.includes('none')) {
+      return { needsAction: false, action: 'none' };
+    } else {
+      return { needsAction: true, action: assistantResponse };
+    }
+  } catch (error) {
+    console.error('Error during OpenAI API call:', error);
+
+    return { needsAction: false, action: 'Error occurred' };
+  }
+}
+
+async function performAction(originalLink, links, action) {
+    const MESSAGE_INPUT = `
+    You are an AI assistant that helps select the most appropriate link from a list based on a user's action.
+
+    Given the following list of labels and links:
+    ${links}
+
+    And the user's action: "${action}"
+
+    Select the link that best matches the action.
+
+    Only output the link, nothing else.
+    `;
+
+    try {
+        const completion = await openai.createChatCompletion({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: MESSAGE_INPUT }],
+          temperature: 0.2,
+          max_tokens: 300,
+        });
+    
+        const url =
+          completion.data.choices[0].message.content.trim();
+
+        if (!isValidUrl(url)) {
+            url = originalLink
+        }
+    
+        return url;
+
+    } catch (error) {
+        console.error('Error during OpenAI API call:', error);
+        return null;
+    }
+}
+
+function isValidUrl(url) {
+    try {
+      new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
 }
 
 module.exports = { depthSearch };

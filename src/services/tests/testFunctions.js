@@ -1,4 +1,4 @@
-const { classifyQuery } = require('../autoSearch'); // Adjust the path as necessary
+const { classifyQuery } = require('../autoSearch');
 
 async function main() {
     const sampleQuery = "research papers on protein structure prediction";
