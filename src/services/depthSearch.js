@@ -5,7 +5,7 @@ const cheerio = require('cheerio');
 async function depthSearch(link, query) {
     if (link.includes("pdf")) {
         const bodyText = await preprocesspdf(link);
-        const keywords = await getKeywords(bodyText);
+        const keywords = await getKeywords(bodyText, query);
         const textChunks = extractFromKeywords(bodyText, keywords);
         const queries = await generateQueries(textChunks, query);
 
@@ -14,7 +14,7 @@ async function depthSearch(link, query) {
         const { links, bodyText } = await preprocess(link);
         console.log(links);
         console.log(bodyText);
-        const keywords = await getKeywords(bodyText);
+        const keywords = await getKeywords(bodyText, query);
         console.log('keywords' + keywords);
         const screenshot = await getScreenshot(link);
         console.log("got screenshot");
@@ -33,7 +33,7 @@ async function depthSearch(link, query) {
             if (newLink.includes("pdf")) {
               const newBodyText = await preprocesspdf(newLink);
               console.log(newBodyText);
-              const newKeywords = await getKeywords(newBodyText);
+              const newKeywords = await getKeywords(newBodyText, query);
               console.log(newKeywords);
               const textChunks = extractFromKeywords(newBodyText, newKeywords);
               console.log(textChunks);
@@ -45,7 +45,7 @@ async function depthSearch(link, query) {
               const { newLinks, newBodyText } = await preprocess(newLink);
               console.log(newLinks);
               console.log(newBodyText);
-              const newKeywords = await getKeywords(newBodyText);
+              const newKeywords = await getKeywords(newBodyText, query);
               console.log('new keywords:' + newKeywords);
               const textChunks = extractFromKeywords(newBodyText, newKeywords);
               console.log(textChunks);

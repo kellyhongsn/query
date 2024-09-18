@@ -22,7 +22,7 @@ async function classifyQuery(query) {
 		{
 			headers: { 
 				"Accept" : "application/json",
-				"Authorization": "Bearer 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",
+				"Authorization": process.env.HUGGINGFACE_API_KEY,
 				"Content-Type": "application/json" 
 			},
 			method: "POST",
