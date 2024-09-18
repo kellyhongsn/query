@@ -1,22 +1,15 @@
-const { performSearch } = require('../depthSearch');
+const { depthSearch } = require('../depthSearch');
 
 async function testDepthSearch(link, query) {
     try {
-      console.log(`Searching for: "${query}" within `);
-      const results = await performSearch(query);
+      console.log(`Searching for: "${query}" within ${link}`);
       
-      console.log(`Found ${results.length} results:\n`);
-      
-      results.forEach((result, index) => {
-        console.log(`Result ${index + 1}:`);
-        console.log(`Title: ${result.title}`);
-        console.log(`Link: ${result.link}`);
-        console.log(`Snippet: ${result.snippet}`);
-        console.log('---');
-      });
+      queries = depthSearch(link, query);
+      console.log('queries retrieved');
+      console.log(queries);
     } catch (error) {
       console.error('Error testing web scraper:', error);
     }
   }
   
-  testDepthSearch("https://arxiv.org/html/2312.10003v1", "research papers on combining reasoning and action in llm agents");
+  testDepthSearch("https://arxiv.org/abs/2306.05685", "research papers on llm eval");

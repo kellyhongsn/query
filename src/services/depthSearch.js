@@ -4,31 +4,56 @@ const cheerio = require('cheerio');
 
 async function depthSearch(link, query) {
     if (link.includes("pdf")) {
-        bodyText = await preprocesspdf(link);
-        keywords = await getKeywords(bodyText);
-        textChunks = extractFromKeywords(bodyText, keywords);
-        queries = generateQueries(textChunk, query);
+        const bodyText = await preprocesspdf(link);
+        const keywords = await getKeywords(bodyText);
+        const textChunks = extractFromKeywords(bodyText, keywords);
+        const queries = await generateQueries(textChunks, query);
 
         return queries;
     } else {
-        links, bodyText = await preprocess(link);
-        keywords = await getKeywords(bodyText);
-        screenshot = await getScreenshot(link);
+        const { links, bodyText } = await preprocess(link);
+        console.log(links);
+        console.log(bodyText);
+        const keywords = await getKeywords(bodyText);
+        console.log('keywords' + keywords);
+        const screenshot = await getScreenshot(link);
+        console.log("got screenshot");
 
-        actionNeeded, action = await screenshotAnalysis(query, screenshot);
+        const analysis = await screenshotAnalysis(query, screenshot);
+        console.log(analysis.needsAction);
+        console.log(analysis.action);
 
-        if (!actionNeeded) {
-            textChunks = extractFromKeywords(bodyText, keywords);
-            queries = generateQueries(textChunk, query);
+        if (!analysis.needsAction) {
+            const textChunks = extractFromKeywords(bodyText, keywords);
+            const queries = await generateQueries(textChunks, query);
             return queries;
         } else {
-            newLink = performAction(link, links, action);
-            links, bodyText = await preprocess(link);
-            keywords = await getKeywords(bodyText);
-            textChunks = extractFromKeywords(bodyText, keywords);
-            queries = generateQueries(textChunk, query);
+            const newLink = await performAction(link, links, analysis.action);
+            console.log('entering new link: ' + newLink);
+            if (newLink.includes("pdf")) {
+              const newBodyText = await preprocesspdf(newLink);
+              console.log(newBodyText);
+              const newKeywords = await getKeywords(newBodyText);
+              console.log(newKeywords);
+              const textChunks = extractFromKeywords(newBodyText, newKeywords);
+              console.log(textChunks);
+              const queries = await generateQueries(textChunks, query);
+              console.log(queries);
 
-            return queries;
+              return queries;
+            } else {
+              const { newLinks, newBodyText } = await preprocess(newLink);
+              console.log(newLinks);
+              console.log(newBodyText);
+              const newKeywords = await getKeywords(newBodyText);
+              console.log('new keywords:' + newKeywords);
+              const textChunks = extractFromKeywords(newBodyText, newKeywords);
+              console.log(textChunks);
+              queries = await generateQueries(textChunks, query);
+              console.log(queries);
+  
+              return queries;
+            }
         }
     }
 }
@@ -84,11 +109,14 @@ async function preprocess(link) {
 
 async function preprocesspdf(originalUrl){
     try {
-        const modifiedUrl = 'r.jina.ai/' + originalUrl;
+        const modifiedUrl = 'https://r.jina.ai/' + originalUrl;
+
+        console.log(modifiedUrl);
 
         const fetch = (await import('node-fetch')).default;
 
         const response = await fetch(modifiedUrl);
+
         if (!response.ok) {
             throw new Error(`Failed to fetch the URL: ${response.statusText}`);
         }
@@ -161,8 +189,15 @@ async function getScreenshot(link) {
       const screenshotBase64 = await page.screenshot({
         fullPage: false,
         encoding: 'base64',
+        type: 'jpeg',
+        quality: 50,
       });
-  
+
+      await page.screenshot({
+        path: 'screenshot.png',
+        fullPage: false,
+      });
+
       return screenshotBase64;
     } catch (error) {
       console.error(`Error capturing screenshot of ${link}:`, error);
@@ -174,36 +209,43 @@ async function getScreenshot(link) {
 }
 
 function extractFromKeywords(bodyText, keywords) {
-    const maxChunks = 5;
-    const chunkLength = 300;
-    let textChunks = [];
-    let usedIndices = [];
-  
-    keywords.forEach(keyword => {
-      const regex = new RegExp(keyword, 'i');
-      let match;
-  
-      while ((match = regex.exec(bodyText)) !== null && textChunks.length < maxChunks) {
-        const keywordIndex = match.index;
-        
-        const start = Math.max(0, keywordIndex - Math.floor(chunkLength / 2));
-        const end = Math.min(bodyText.length, keywordIndex + Math.floor(chunkLength / 2));
-        
-        const overlaps = usedIndices.some(([existingStart, existingEnd]) => {
-          return (start <= existingEnd && end >= existingStart);
-        });
-  
-        if (!overlaps) {
-          const chunk = bodyText.slice(start, end).trim();
-          textChunks.push(chunk);
-          usedIndices.push([start, end]);
-        }
-  
-        regex.lastIndex = keywordIndex + 1;
+  const maxChunks = 5;
+  const chunkLength = 300;
+  let textChunks = [];
+  let usedIndices = [];
+
+  console.log('entered extractFromKeywords');
+
+  const lowerCaseBodyText = bodyText.toLowerCase();
+
+  keywords.forEach(keyword => {
+      const lowerCaseKeyword = keyword.toLowerCase();
+      let index = 0;
+
+      while (index < lowerCaseBodyText.length && textChunks.length < maxChunks) {
+          const keywordIndex = lowerCaseBodyText.indexOf(lowerCaseKeyword, index);
+          if (keywordIndex === -1) {
+              break;
+          }
+
+          const start = Math.max(0, keywordIndex - Math.floor(chunkLength / 2));
+          const end = Math.min(bodyText.length, keywordIndex + Math.floor(chunkLength / 2));
+
+          const overlaps = usedIndices.some(([existingStart, existingEnd]) => {
+              return (start <= existingEnd && end >= existingStart);
+          });
+
+          if (!overlaps) {
+              const chunk = bodyText.slice(start, end).trim();
+              textChunks.push(chunk);
+              usedIndices.push([start, end]);
+          }
+
+          index = keywordIndex + 1;
       }
-    });
-  
-    return textChunks.slice(0, maxChunks).join('\n');
+  });
+
+  return textChunks.slice(0, maxChunks).join('\n');
 }
 
 async function generateQueries(textChunk, query) {
@@ -245,20 +287,23 @@ async function generateQueries(textChunk, query) {
 }
 
 async function screenshotAnalysis(userQuery, screenshotBase64) {
+    console.log(screenshotBase64);
+
     const SYSTEM_INSTRUCTION = `
     You are an AI assistant that helps determine if a webpage shows the full content desired by the user or if additional actions are needed to access the full content. Based on the user's query and a screenshot of the webpage, provide an action if needed, such as "click on 'view more' button", or output "none" if the page already shows the full content.
 
     Instructions:
-    - Analyze the screenshot provided (in Base64 encoding).
+    - Analyze the screenshot provided (in Base64 encoding), looking for buttons/links like 'View PDF', 'read more', etc.
     - Compare it with the user's query.
-    - If the full content is visible in the screenshot, respond with "none".
+    - If the full content of what the user is looking for is visible in the screenshot and no additional actions like clicking a "read more" or "view pdf" button is necessary, respond with "none".
     - If additional action is needed to view the full content, specify the action (e.g., "click on 'view PDF' button").
 
     Respond with your conclusion without any additional text.
     `;
 
   try {
-    const chatCompletion = await openai.createChatCompletion({
+
+    const chatCompletion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_INSTRUCTION },
@@ -269,16 +314,18 @@ async function screenshotAnalysis(userQuery, screenshotBase64) {
             {
                 type: 'image_url',
                 image_url: {
-                    url: `data:image/jpeg;base64, ${screenshotBase64}`
+                    url: `data:image/jpeg;base64,${screenshotBase64}`,
                 }
             }
         ] },
       ],
       temperature: 0.2,
-      max_tokens: 100,
+      max_tokens: 2000,
     });
 
-    const assistantResponse = chatCompletion.data.choices[0].message.content.trim();
+    const assistantResponse = chatCompletion.choices[0].message.content;
+
+    console.log(assistantResponse);
 
     const lowerCaseResponse = assistantResponse.toLowerCase();
 
@@ -309,15 +356,14 @@ async function performAction(originalLink, links, action) {
     `;
 
     try {
-        const completion = await openai.createChatCompletion({
+        const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: MESSAGE_INPUT }],
           temperature: 0.2,
           max_tokens: 300,
         });
     
-        const url =
-          completion.data.choices[0].message.content.trim();
+        const url = completion.choices[0].message.content.trim();
 
         if (!isValidUrl(url)) {
             url = originalLink
