@@ -37,6 +37,9 @@ It understands user intent from a query and browses the web to deliver the most 
 <br>
 
 ### Demo
-[Demo] (./content/demo.mp4)
+
+https://github.com/user-attachments/assets/f755e13a-0423-4923-975d-da03a55faa8a
+
+
 
 [Try it out](https://querysearch.live/)
